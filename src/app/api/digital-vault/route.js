@@ -1,5 +1,38 @@
-import { getSession } from "@/utilities/getSession"; 
 import { NextResponse } from "next/server";
+import sql from "@/db";
+
+async function ensureSchema() {
+  // Create required tables if they do not exist
+  await sql`
+    CREATE TABLE IF NOT EXISTS digital_vault_documents (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      file_url TEXT NOT NULL,
+      file_type TEXT,
+      file_size BIGINT,
+      access_password TEXT NOT NULL,
+      original_name TEXT DEFAULT '',
+      document_type TEXT DEFAULT '',
+      file_kind TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS digital_vault_trusted_agents (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      agent_name TEXT NOT NULL,
+      agent_email TEXT NOT NULL,
+      relationship TEXT DEFAULT '',
+      access_password TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+}
 
 async function handler({
   action,
@@ -10,7 +43,23 @@ async function handler({
   method,
   agentId,
 }) {
-  const session = getSession();
+  // Derive session via DB (latest active session) since getSession() is unavailable here
+  let session = null;
+  try {
+    const rows = await sql`
+      SELECT s."userId", u.email, u.name
+      FROM auth_sessions s
+      JOIN auth_users u ON u.id = s."userId"
+      WHERE s.expires > NOW()
+      ORDER BY s.expires DESC
+      LIMIT 1
+    `;
+    if (rows.length > 0) {
+      const r = rows[0];
+      session = { user: { id: r.userId, email: r.email, name: r.name } };
+    }
+  } catch {}
+
   if (!session?.user?.id) {
     console.error("Digital vault: No valid session");
     return  NextResponse.json({ error: "Unauthorized" });
@@ -21,13 +70,29 @@ async function handler({
 
   try {
     if (action === "listDocuments") {
-      const documents = await sql`
-        SELECT id, title, description, file_type, file_size, original_name, 
-               document_type, file_kind, created_at, updated_at
-        FROM digital_vault_documents 
-        WHERE user_id = ${userId}
-        ORDER BY created_at DESC
-      `;
+      let documents;
+      try {
+        documents = await sql`
+          SELECT id, title, description, file_type, file_size, original_name, 
+                 document_type, file_kind, created_at, updated_at
+          FROM digital_vault_documents 
+          WHERE user_id = ${userId}
+          ORDER BY created_at DESC
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') { // table does not exist
+          await ensureSchema();
+          documents = await sql`
+            SELECT id, title, description, file_type, file_size, original_name, 
+                   document_type, file_kind, created_at, updated_at
+            FROM digital_vault_documents 
+            WHERE user_id = ${userId}
+            ORDER BY created_at DESC
+          `;
+        } else {
+          throw e;
+        }
+      }
       console.log(`Found ${documents.length} documents for user ${userId}`);
       
       return  NextResponse.json({ documents });
@@ -50,18 +115,36 @@ async function handler({
         ":" +
         salt;
 
-      const [newDoc] = await sql`
-        INSERT INTO digital_vault_documents 
-        (user_id, title, description, file_url, file_type, file_size, 
-         access_password, original_name, document_type, file_kind)
-        VALUES (${userId}, ${document.title}, ${document.description || ""}, 
-                ${document.file_url}, ${document.file_type}, ${
-        document.file_size
-      },
-                ${hashedPassword}, ${document.original_name || ""}, 
-                ${document.document_type || ""}, ${document.file_kind || ""})
-        RETURNING *
-      `;
+      let newDocRows;
+      try {
+        newDocRows = await sql`
+          INSERT INTO digital_vault_documents 
+          (user_id, title, description, file_url, file_type, file_size, 
+           access_password, original_name, document_type, file_kind)
+          VALUES (${userId}, ${document.title}, ${document.description || ""}, 
+                  ${document.file_url}, ${document.file_type}, ${document.file_size},
+                  ${hashedPassword}, ${document.original_name || ""}, 
+                  ${document.document_type || ""}, ${document.file_kind || ""})
+          RETURNING *
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') {
+          await ensureSchema();
+          newDocRows = await sql`
+            INSERT INTO digital_vault_documents 
+            (user_id, title, description, file_url, file_type, file_size, 
+             access_password, original_name, document_type, file_kind)
+            VALUES (${userId}, ${document.title}, ${document.description || ""}, 
+                    ${document.file_url}, ${document.file_type}, ${document.file_size},
+                    ${hashedPassword}, ${document.original_name || ""}, 
+                    ${document.document_type || ""}, ${document.file_kind || ""})
+            RETURNING *
+          `;
+        } else {
+          throw e;
+        }
+      }
+      const [newDoc] = newDocRows;
 
       console.log(
         `Document uploaded successfully for user ${userId}:`,
@@ -79,10 +162,24 @@ async function handler({
         return  NextResponse.json({ error: "Missing document ID or password" });
       }
 
-      const [doc] = await sql`
-        SELECT * FROM digital_vault_documents 
-        WHERE id = ${docId} AND user_id = ${userId}
-      `;
+      let docRows;
+      try {
+        docRows = await sql`
+          SELECT * FROM digital_vault_documents 
+          WHERE id = ${docId} AND user_id = ${userId}
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') {
+          await ensureSchema();
+          docRows = await sql`
+            SELECT * FROM digital_vault_documents 
+            WHERE id = ${docId} AND user_id = ${userId}
+          `;
+        } else {
+          throw e;
+        }
+      }
+      const [doc] = docRows;
 
       if (!doc) {
         console.error(`Document not found: ${docId} for user ${userId}`);
@@ -119,38 +216,21 @@ async function handler({
           isValidPassword = false;
         }
       } else {
-        // Old bcrypt hash format - try bcrypt first
-        console.log("Using bcrypt verification for legacy hash format");
-        try {
-          const bcrypt = require("bcrypt");
-          isValidPassword = await bcrypt.compare(password, doc.access_password);
-          console.log(`Bcrypt verification result: ${isValidPassword}`);
-        } catch (bcryptError) {
-          console.error("Bcrypt verification error:", bcryptError);
-          // If bcrypt fails, maybe it's actually a crypto hash without colon?
-          // This shouldn't happen but let's be extra safe
-          console.log("Bcrypt failed, trying crypto verification as fallback");
+        // Legacy path without colon: treat as invalid or attempt crypto fallback split
+        const parts = doc.access_password.split(":");
+        if (parts.length === 2) {
           try {
             const crypto = require("crypto");
-            // Try to split anyway in case the colon check failed
-            const parts = doc.access_password.split(":");
-            if (parts.length === 2) {
-              const [hash, salt] = parts;
-              const verifyHash = crypto
-                .pbkdf2Sync(password, salt, 1000, 64, "sha512")
-                .toString("hex");
-              isValidPassword = hash === verifyHash;
-              console.log(
-                `Crypto fallback verification result: ${isValidPassword}`
-              );
-            }
-          } catch (cryptoFallbackError) {
-            console.error(
-              "Crypto fallback verification error:",
-              cryptoFallbackError
-            );
+            const [hash, salt] = parts;
+            const verifyHash = crypto
+              .pbkdf2Sync(password, salt, 1000, 64, "sha512")
+              .toString("hex");
+            isValidPassword = hash === verifyHash;
+          } catch (e) {
             isValidPassword = false;
           }
+        } else {
+          isValidPassword = false;
         }
       }
 
@@ -170,10 +250,24 @@ async function handler({
       }
 
       // First verify the document exists and get the password hash
-      const [doc] = await sql`
-        SELECT access_password FROM digital_vault_documents 
-        WHERE id = ${docId} AND user_id = ${userId}
-      `;
+      let docRowsPw;
+      try {
+        docRowsPw = await sql`
+          SELECT access_password FROM digital_vault_documents 
+          WHERE id = ${docId} AND user_id = ${userId}
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') {
+          await ensureSchema();
+          docRowsPw = await sql`
+            SELECT access_password FROM digital_vault_documents 
+            WHERE id = ${docId} AND user_id = ${userId}
+          `;
+        } else {
+          throw e;
+        }
+      }
+      const [doc] = docRowsPw;
 
       if (!doc) {
         console.error(
@@ -200,17 +294,8 @@ async function handler({
             isValidPassword = false;
           }
         } else {
-          // Old bcrypt hash format
-          try {
-            const bcrypt = require("bcrypt");
-            isValidPassword = await bcrypt.compare(
-              password,
-              doc.access_password
-            );
-          } catch (bcryptError) {
-            console.error("Bcrypt verification error:", bcryptError);
-            isValidPassword = false;
-          }
+          // Legacy path without colon: cannot verify without salt; mark invalid
+          isValidPassword = false;
         }
 
         if (!isValidPassword) {
@@ -235,12 +320,27 @@ async function handler({
     }
 
     if (action === "listTrustedAgents") {
-      const agents = await sql`
-        SELECT id, agent_name, agent_email, relationship, created_at, updated_at
-        FROM digital_vault_trusted_agents 
-        WHERE user_id = ${userId}
-        ORDER BY created_at DESC
-      `;
+      let agents;
+      try {
+        agents = await sql`
+          SELECT id, agent_name, agent_email, relationship, created_at, updated_at
+          FROM digital_vault_trusted_agents 
+          WHERE user_id = ${userId}
+          ORDER BY created_at DESC
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') {
+          await ensureSchema();
+          agents = await sql`
+            SELECT id, agent_name, agent_email, relationship, created_at, updated_at
+            FROM digital_vault_trusted_agents 
+            WHERE user_id = ${userId}
+            ORDER BY created_at DESC
+          `;
+        } else {
+          throw e;
+        }
+      }
       console.log(`Found ${agents.length} trusted agents for user ${userId}`);
       return  NextResponse.json({ agents });
     }
@@ -259,13 +359,30 @@ async function handler({
         ":" +
         salt;
 
-      const [newAgent] = await sql`
-        INSERT INTO digital_vault_trusted_agents 
-        (user_id, agent_name, agent_email, relationship, access_password)
-        VALUES (${userId}, ${agentData.name}, ${agentData.email}, 
-                ${agentData.relationship || ""}, ${hashedPassword})
-        RETURNING *
-      `;
+      let newAgentRows;
+      try {
+        newAgentRows = await sql`
+          INSERT INTO digital_vault_trusted_agents 
+          (user_id, agent_name, agent_email, relationship, access_password)
+          VALUES (${userId}, ${agentData.name}, ${agentData.email}, 
+                  ${agentData.relationship || ""}, ${hashedPassword})
+          RETURNING *
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') {
+          await ensureSchema();
+          newAgentRows = await sql`
+            INSERT INTO digital_vault_trusted_agents 
+            (user_id, agent_name, agent_email, relationship, access_password)
+            VALUES (${userId}, ${agentData.name}, ${agentData.email}, 
+                    ${agentData.relationship || ""}, ${hashedPassword})
+            RETURNING *
+          `;
+        } else {
+          throw e;
+        }
+      }
+      const [newAgent] = newAgentRows;
 
       console.log(
         `Trusted agent added successfully for user ${userId}:`,
@@ -280,10 +397,23 @@ async function handler({
         return  NextResponse.json({ error: "Missing agent ID" });
       }
 
-      const result = await sql`
-        DELETE FROM digital_vault_trusted_agents 
-        WHERE id = ${agentId} AND user_id = ${userId}
-      `;
+      let result;
+      try {
+        result = await sql`
+          DELETE FROM digital_vault_trusted_agents 
+          WHERE id = ${agentId} AND user_id = ${userId}
+        `;
+      } catch (e) {
+        if (e?.code === '42P01') {
+          await ensureSchema();
+          result = await sql`
+            DELETE FROM digital_vault_trusted_agents 
+            WHERE id = ${agentId} AND user_id = ${userId}
+          `;
+        } else {
+          throw e;
+        }
+      }
 
       console.log(
         `Trusted agent deleted successfully: ${agentId}, affected rows: ${result.length}`

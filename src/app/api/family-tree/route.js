@@ -1,3 +1,7 @@
+import sql from "@/db";
+import { getSession } from "@/utilities/getSession"; // use named import
+import { NextResponse } from "next/server";
+
 async function handler({
   method,
   id,
@@ -7,9 +11,9 @@ async function handler({
   email,
   isGalixeeUser,
 }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Not authenticated" };
+      return NextResponse.json({ error: "Not authenticated" });
   }
 
   try {
@@ -39,7 +43,7 @@ async function handler({
           isGalixeeUser: !!member.linked_galixee_user_id,
         }));
 
-        return { members: mappedMembers };
+        return NextResponse.json({ members: mappedMembers });
       }
 
       case "CREATE": {
@@ -82,7 +86,7 @@ async function handler({
           isGalixeeUser: !!result[0].linked_galixee_user_id,
         };
 
-        return { member };
+        return NextResponse.json({ member });
       }
 
       case "UPDATE": {
@@ -111,7 +115,7 @@ async function handler({
         `;
 
         if (result.length === 0) {
-          return { error: "Member not found or unauthorized" };
+          return NextResponse.json({ error: "Member not found or unauthorized" });
         }
 
         // Map database field names to frontend field names
@@ -121,11 +125,11 @@ async function handler({
           isGalixeeUser: !!result[0].linked_galixee_user_id,
         };
 
-        return { member };
+        return NextResponse.json({ member });
       }
 
       case "DELETE": {
-        if (!id) return { error: "Missing member id" };
+        if (!id) return NextResponse.json({ error: "Missing member id" });
 
         const result = await sql`
           DELETE FROM family_tree_members 
@@ -134,17 +138,17 @@ async function handler({
         `;
 
         if (result.length === 0) {
-          return { error: "Member not found or unauthorized" };
+          return NextResponse.json({ error: "Member not found or unauthorized" });
         }
-        return { success: true };
+        return NextResponse.json({ success: true });
       }
 
       default:
-        return { error: "Invalid method" };
+        return NextResponse.json({ error: "Invalid method" });
     }
   } catch (error) {
     console.error("Family tree handler error:", error);
-    return { error: "Failed to process request" };
+    return NextResponse.json({ error: "Failed to process request" });
   }
 }
 export async function POST(request) {

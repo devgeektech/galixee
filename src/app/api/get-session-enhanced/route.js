@@ -1,5 +1,4 @@
-import sql from "@/db"; // your database client
-
+import sql from "@/db";
 // Handler to get session from DB
 async function handler() {
   try {

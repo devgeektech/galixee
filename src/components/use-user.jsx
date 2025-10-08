@@ -3,8 +3,96 @@ import React from "react";
 
 
 
-export default function Index() {
-  return (function useUser() {
+// export default function Index() {
+//   return (function useUser() {
+//   const [data, setData] = React.useState(null);
+//   const [loading, setLoading] = React.useState(true);
+//   const [error, setError] = React.useState(null);
+//   const [isInitialized, setIsInitialized] = React.useState(false);
+
+//   const fetchUser = React.useCallback(async () => {
+//     try {
+//       setError(null);
+      
+//       const response = await fetch('/api/get-session-enhanced', {
+//         method: 'POST',
+//         headers: {
+//           'Content-Type': 'application/json',
+//           'Cache-Control': 'no-cache',
+//         },
+//         credentials: 'include',
+//       });
+
+//       if (!response.ok) {
+//         if (response.status === 401) {
+//           setData(null);
+//           setLoading(false);
+//           return;
+//         }
+//         throw new Error(`Session check failed: ${response.status}`);
+//       }
+
+//       const result = await response.json();
+      
+//       if (result.user) {
+//         setData(result.user);
+//       } else {
+//         setData(null);
+//       }
+//     } catch (err) {
+//       console.error('Error fetching user:', err);
+//       setError(err.message);
+//       setData(null);
+//     } finally {
+//       setLoading(false);
+//       setIsInitialized(true);
+//     }
+//   }, []);
+
+//   const refetch = React.useCallback(async () => {
+//     setLoading(true);
+//     await fetchUser();
+//   }, [fetchUser]);
+
+//   React.useEffect(() => {
+//     fetchUser();
+//   }, [fetchUser]);
+
+//   React.useEffect(() => {
+//     if (typeof window !== 'undefined') {
+//       const handleStorageChange = (e) => {
+//         if (e.key === 'galixee_session' || e.key === null) {
+//           refetch();
+//         }
+//       };
+
+//       const handleFocus = () => {
+//         if (isInitialized) {
+//           refetch();
+//         }
+//       };
+
+//       window.addEventListener('storage', handleStorageChange);
+//       window.addEventListener('focus', handleFocus);
+
+//       return () => {
+//         window.removeEventListener('storage', handleStorageChange);
+//         window.removeEventListener('focus', handleFocus);
+//       };
+//     }
+//   }, [refetch, isInitialized]);
+
+//   return {
+//     data,
+//     loading,
+//     error,
+//     refetch,
+//     isAuthenticated: Boolean(data),
+//     isInitialized,
+//   };
+// }
+
+export default function useUser(){
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -91,6 +179,8 @@ export default function Index() {
     isInitialized,
   };
 }
+
+
 
 function MainComponent({ showDebugInfo = false, variant = 'default' }) {
   const { data: user, loading, error, refetch, isAuthenticated, isInitialized } = useUser();
@@ -300,5 +390,4 @@ return <div>Welcome, {user.email}!</div>;`}
       </div>
     </div>
   );
-});
-}
+};

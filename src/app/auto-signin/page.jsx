@@ -1,5 +1,6 @@
 "use client";
-import React from "react";
+import {React, useState,useEffect} from "react";
+
 
 function MainComponent() {
   const [status, setStatus] = useState("initializing");
@@ -9,7 +10,7 @@ function MainComponent() {
   useEffect(() => {
     const handleAutoSignIn = async () => {
       try {
-        setStatus("checking_user");
+        setStatus("checking_user"); 
 
         // Get redirect URL from query params
         const urlParams = new URLSearchParams(window.location.search);

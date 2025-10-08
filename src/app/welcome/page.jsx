@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
-
+import AdBanner from "../../components/ad-banner"
+import BetaFeedbackWidget from "../../components/beta-feedback-widget"
 function MainComponent() {
   const [user, setUser] = React.useState(null);
   const [userLoading, setUserLoading] = React.useState(true);

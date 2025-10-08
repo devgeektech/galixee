@@ -1,6 +1,8 @@
 "use client";
 import React from "react";
-
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // Added for redirection
+import useAuth from "../components/use-auth"; // Adjust the path as needed
 
 
 export default function Index() {
@@ -405,6 +407,10 @@ function MainComponent({ variant = "default", showDemo = false }) {
     </div>
   );
 }
+
+
+
+
 
 function StoryComponent() {
   return (

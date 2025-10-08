@@ -1,5 +1,6 @@
 "use client";
-import React from "react";
+import {React, useState, useEffect} from "react";
+import useUser from '../../components/use-user'
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -18,9 +19,10 @@ function MainComponent() {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   useEffect(() => {
+   console.log("user issssssss",user)
     if (!userLoading && !user) {
       const currentPath = encodeURIComponent(window.location.pathname);
-      window.location.href = `/account/signin?callbackUrl=${currentPath}`;
+      //window.location.href = `/account/signin?callbackUrl=${currentPath}`;
       return;
     }
 

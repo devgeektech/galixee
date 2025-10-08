@@ -274,7 +274,7 @@ export default function Index() {
       )}
     </>
   );
-}
+})}
 
 function StoryComponent() {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -358,5 +358,4 @@ function StoryComponent() {
       </div>
     </div>
   );
-});
 }

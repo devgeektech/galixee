@@ -3,6 +3,7 @@ import React from "react";
 import { useState } from "react";
 // import SubscriptionUpsell from "../components/subscription-upsell";
 import useUser from '../components/use-user'
+import useIsSubscribed from '../components/use-is-subscribed'
 
 function MainComponent() {
   const [error, setError] = useState(null);

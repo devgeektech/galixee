@@ -199,7 +199,7 @@ export default function Index() {
       </div>
     </div>
   );
-}
+})
 
 function StoryComponent() {
   const sampleAds = [
@@ -312,5 +312,5 @@ function StoryComponent() {
       </div>
     </div>
   );
-});
+};
 }

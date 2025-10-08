@@ -13,6 +13,7 @@ function MainComponent() {
   const [treeView, setTreeView] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -20,10 +21,15 @@ function MainComponent() {
       window.location.href = `/account/signin?callbackUrl=${currentPath}`;
       return;
     }
-    fetchFamilyMembers();
-  }, [user, userLoading]);
+    // Avoid auto-refreshing while the add/edit modal is open
+    if (!isAddingMember && !editingMember) {
+      fetchFamilyMembers();
+    }
+  }, [user, userLoading, isAddingMember, editingMember]);
 
   const fetchFamilyMembers = async () => {
+    if (isFetchingRef.current) return; // prevent overlapping fetches
+    isFetchingRef.current = true;
     try {
       const response = await fetch("/api/family-tree", {
         method: "POST",
@@ -47,6 +53,7 @@ function MainComponent() {
       setError("Could not load family tree");
       setFamilyMembers([]); // Reset to empty array on error
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
   };
@@ -219,9 +226,25 @@ function MainComponent() {
       "Sister-in-Law",
     ];
 
-    const handleSubmit = (e) => {
+    const [submitting, setSubmitting] = useState(false);
+    const handleSubmit = async (e) => {
       e.preventDefault();
-      onSubmit(formData);
+      if (submitting) return;
+      try {
+        const fd = new FormData(e.currentTarget);
+        const payload = {
+          name: (fd.get("name") || "").toString(),
+          relationship: (fd.get("relationship") || "").toString(),
+          birthDate: (fd.get("birthDate") || "").toString(),
+          email: (fd.get("email") || "").toString(),
+          isGalixeeUser: fd.get("isGalixeeUser") === "on",
+        };
+        console.log("Submitting family member:", payload);
+        setSubmitting(true);
+        await onSubmit(payload);
+      } finally {
+        setSubmitting(false);
+      }
     };
 
     return (
@@ -237,6 +260,7 @@ function MainComponent() {
               </label>
               <input
                 type="text"
+                name="name"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -251,6 +275,7 @@ function MainComponent() {
                 Relationship
               </label>
               <select
+                name="relationship"
                 value={formData.relationship}
                 onChange={(e) =>
                   setFormData({ ...formData, relationship: e.target.value })
@@ -273,6 +298,7 @@ function MainComponent() {
               </label>
               <input
                 type="date"
+                name="birthDate"
                 value={formData.birthDate}
                 onChange={(e) =>
                   setFormData({ ...formData, birthDate: e.target.value })
@@ -287,6 +313,7 @@ function MainComponent() {
               </label>
               <input
                 type="email"
+                name="email"
                 value={formData.email}
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
@@ -299,6 +326,7 @@ function MainComponent() {
               <input
                 type="checkbox"
                 id="isGalixeeUser"
+                name="isGalixeeUser"
                 checked={formData.isGalixeeUser}
                 onChange={(e) =>
                   setFormData({ ...formData, isGalixeeUser: e.target.checked })
@@ -323,9 +351,10 @@ function MainComponent() {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg text-white transition-colors"
+                disabled={submitting}
+                className="px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {initialData ? "Save Changes" : "Add Member"}
+                {submitting ? (initialData ? "Saving..." : "Adding...") : (initialData ? "Save Changes" : "Add Member")}
               </button>
             </div>
           </form>

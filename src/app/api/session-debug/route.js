@@ -1,3 +1,4 @@
+import getSession from '@/utilities/getSession'
 async function handler() {
   try {
     const session = getSession();

@@ -1,3 +1,6 @@
+import { getSession } from "@/utilities/getSession"; 
+import { NextResponse } from "next/server";
+
 async function handler({
   action,
   docId,
@@ -10,7 +13,7 @@ async function handler({
   const session = getSession();
   if (!session?.user?.id) {
     console.error("Digital vault: No valid session");
-    return { error: "Unauthorized" };
+    return  NextResponse.json({ error: "Unauthorized" });
   }
 
   const userId = session.user.id;
@@ -26,7 +29,8 @@ async function handler({
         ORDER BY created_at DESC
       `;
       console.log(`Found ${documents.length} documents for user ${userId}`);
-      return { documents };
+      
+      return  NextResponse.json({ documents });
     }
 
     if (action === "uploadDocument") {
@@ -35,7 +39,7 @@ async function handler({
           document: !!document,
           password: !!password,
         });
-        return { error: "Missing required fields" };
+        return  NextResponse.json({ error: "Missing required fields" });
       }
 
       // Hash the password using crypto instead of bcrypt
@@ -63,7 +67,7 @@ async function handler({
         `Document uploaded successfully for user ${userId}:`,
         newDoc.id
       );
-      return { document: newDoc };
+      return  NextResponse.json({ document: newDoc });
     }
 
     if (action === "accessDocument") {
@@ -72,7 +76,7 @@ async function handler({
           docId: !!docId,
           password: !!password,
         });
-        return { error: "Missing document ID or password" };
+        return  NextResponse.json({ error: "Missing document ID or password" });
       }
 
       const [doc] = await sql`
@@ -82,7 +86,7 @@ async function handler({
 
       if (!doc) {
         console.error(`Document not found: ${docId} for user ${userId}`);
-        return { error: "Document not found" };
+        return  NextResponse.json({ error: "Document not found" });
       }
 
       console.log(`Attempting to access document ${docId}`);
@@ -152,17 +156,17 @@ async function handler({
 
       if (!isValidPassword) {
         console.error(`Password verification failed for document ${docId}`);
-        return { error: "Invalid password" };
+        return  NextResponse.json({ error: "Invalid password" });
       }
 
       console.log(`Document accessed successfully: ${docId}`);
-      return { fileUrl: doc.file_url };
+      return  NextResponse.json({ fileUrl: doc.file_url });
     }
 
     if (action === "deleteDocument") {
       if (!docId) {
         console.error("Delete document: Missing docId");
-        return { error: "Missing document ID" };
+        return  NextResponse.json({ error: "Missing document ID" });
       }
 
       // First verify the document exists and get the password hash
@@ -175,7 +179,7 @@ async function handler({
         console.error(
           `Delete: Document not found: ${docId} for user ${userId}`
         );
-        return { error: "Document not found" };
+        return  NextResponse.json({ error: "Document not found" });
       }
 
       // Verify password if provided
@@ -211,11 +215,11 @@ async function handler({
 
         if (!isValidPassword) {
           console.error(`Delete: Invalid password for document ${docId}`);
-          return { error: "Invalid password" };
+          return  NextResponse.json({ error: "Invalid password" });
         }
       } else {
         console.error("Delete document: No password provided");
-        return { error: "Password required for deletion" };
+        return  NextResponse.json({ error: "Password required for deletion" });
       }
 
       // Delete the document
@@ -227,7 +231,7 @@ async function handler({
       console.log(
         `Document deleted successfully: ${docId}, affected rows: ${result.length}`
       );
-      return { success: true };
+      return  NextResponse.json({ success: true });
     }
 
     if (action === "listTrustedAgents") {
@@ -238,13 +242,13 @@ async function handler({
         ORDER BY created_at DESC
       `;
       console.log(`Found ${agents.length} trusted agents for user ${userId}`);
-      return { agents };
+      return  NextResponse.json({ agents });
     }
 
     if (action === "addTrustedAgent") {
       if (!agentData?.name || !agentData?.email || !password) {
         console.error("Add agent: Missing required fields");
-        return { error: "Missing required agent data or password" };
+        return  NextResponse.json({ error: "Missing required agent data or password" });
       }
 
       // Hash the password using crypto
@@ -267,13 +271,13 @@ async function handler({
         `Trusted agent added successfully for user ${userId}:`,
         newAgent.id
       );
-      return { agent: newAgent };
+      return  NextResponse.json({ agent: newAgent });
     }
 
     if (method === "DELETE_AGENT") {
       if (!agentId) {
         console.error("Delete agent: Missing agentId");
-        return { error: "Missing agent ID" };
+        return  NextResponse.json({ error: "Missing agent ID" });
       }
 
       const result = await sql`
@@ -284,14 +288,14 @@ async function handler({
       console.log(
         `Trusted agent deleted successfully: ${agentId}, affected rows: ${result.length}`
       );
-      return { success: true };
+      return  NextResponse.json({ success: true });
     }
 
     console.error(`Invalid action or method: ${action || method}`);
-    return { error: "Invalid action" };
+    return  NextResponse.json({ error: "Invalid action" });
   } catch (error) {
     console.error("Digital vault handler error:", error);
-    return { error: "Server error: " + error.message };
+    return  NextResponse.json({ error: "Server error: " + error.message });
   }
 }
 export async function POST(request) {

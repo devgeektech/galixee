@@ -1,6 +1,36 @@
+import sql from "@/db";
+import { randomUUID } from "crypto";
+
 async function handler({ email, forceRepair }) {
-  // First, check if we already have a working session
-  const currentSession = getSession();
+  // Try to derive a current session from DB (latest active), since getSession() isn't available here
+  let currentSession = null;
+  try {
+    const rows = await sql`
+      SELECT 
+        s."userId",
+        s.expires,
+        u.name,
+        u.email
+      FROM auth_sessions s
+      JOIN auth_users u ON s."userId" = u.id
+      WHERE s.expires > NOW()
+      ORDER BY s.expires DESC
+      LIMIT 1
+    `;
+    if (rows.length > 0) {
+      const r = rows[0];
+      currentSession = {
+        user: {
+          id: r.userId,
+          email: r.email,
+          name: r.name,
+        },
+        expires: r.expires,
+      };
+    }
+  } catch (e) {
+    // ignore; we'll proceed without a current session
+  }
 
   const diagnostics = {
     timestamp: new Date().toISOString(),
@@ -37,13 +67,13 @@ async function handler({ email, forceRepair }) {
     // If we have a session, use that user
     if (currentSession?.user?.id) {
       const userCheck = await sql`
-        SELECT id, email, name, subscription_status 
+        SELECT id, email, name 
         FROM auth_users 
         WHERE id = ${currentSession.user.id}
       `;
 
       if (userCheck.length > 0) {
-        targetUser = userCheck[0];
+        targetUser = { ...userCheck[0], subscription_status: null };
         diagnostics.userFoundById = true;
       }
     }
@@ -51,13 +81,13 @@ async function handler({ email, forceRepair }) {
     // If no user found by session but email provided, try email lookup
     if (!targetUser && email) {
       const userByEmail = await sql`
-        SELECT id, email, name, subscription_status 
+        SELECT id, email, name 
         FROM auth_users 
         WHERE email = ${email}
       `;
 
       if (userByEmail.length > 0) {
-        targetUser = userByEmail[0];
+        targetUser = { ...userByEmail[0], subscription_status: null };
         diagnostics.userFoundByEmail = true;
       }
     }
@@ -96,7 +126,7 @@ async function handler({ email, forceRepair }) {
     }
 
     // Create a new session regardless (this ensures fresh session)
-    const newSessionToken = crypto.randomUUID();
+    const newSessionToken = randomUUID();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
@@ -109,7 +139,7 @@ async function handler({ email, forceRepair }) {
     diagnostics.newSessionToken = newSessionToken.substring(0, 8) + "...";
 
     // The key insight: we need to tell the user to refresh the page
-    // because getSession() is a server-side function that will pick up
+    // because session retrieval is server-side and will pick up
     // the new session on the next page load
     return {
       success: true,
@@ -118,7 +148,7 @@ async function handler({ email, forceRepair }) {
         id: targetUser.id,
         email: targetUser.email,
         name: targetUser.name,
-        subscription_status: targetUser.subscription_status,
+        subscription_status: targetUser.subscription_status ?? null,
       },
       sessionToken: newSessionToken,
       expires: expiresAt.toISOString(),
@@ -135,10 +165,17 @@ async function handler({ email, forceRepair }) {
       error: "Database error during session repair",
       details: error.message,
       action: "retry_later",
-      diagnostics,
     };
   }
 }
 export async function POST(request) {
-  return handler(await request.json());
+  let body = {};
+  try {
+    const text = await request.text();
+    body = text ? JSON.parse(text) : {};
+  } catch (e) {
+    // ignore malformed/empty JSON; proceed with defaults
+  }
+  const result = await handler(body);
+  return Response.json(result || {});
 }

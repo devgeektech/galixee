@@ -4,24 +4,21 @@ import sql from "@/db"; // your database client
 async function handler() {
   try {
     // 1️⃣ Try to get the latest active session
-    const activeSessions = await sql`
-      SELECT 
-        s."userId",
-        s.expires,
-        u.name,
-        u.email,
-        u.subscription_status,
-        u.stripe_id,
-        p.first_name,
-        p.last_name,
-        p.image
-      FROM auth_sessions s
-      JOIN auth_users u ON s."userId" = u.id
-      LEFT JOIN user_profiles p ON u.id = p.user_id
-      WHERE s.expires > NOW()
-      ORDER BY s.expires DESC
-      LIMIT 1
-    `;
+    const activeSessions = await sql`SELECT 
+  s."userId",
+  s.expires,
+  u.name,
+  u.email,
+  p.first_name,
+  p.last_name,
+  u.image
+FROM auth_sessions s
+JOIN auth_users u ON s."userId" = u.id
+LEFT JOIN user_profiles p ON u.id = p.user_id
+WHERE s.expires > NOW()
+ORDER BY s.expires DESC
+LIMIT 1`;
+
 
     if (activeSessions.length > 0) {
       const sessionData = activeSessions[0];
@@ -35,8 +32,8 @@ async function handler() {
             null,
           email: sessionData.email,
           image: sessionData.image,
-          subscription_status: sessionData.subscription_status,
-          stripe_id: sessionData.stripe_id,
+          subscription_status: sessionData.subscription_status ?? null,
+          stripe_id: sessionData.stripe_id ?? null,
         },
         expires: sessionData.expires,
       };

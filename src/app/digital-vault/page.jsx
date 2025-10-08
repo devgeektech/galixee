@@ -1,7 +1,8 @@
 "use client";
-import React from "react";
+import {React, useState, useEffect,useRef} from "react";
+import useUser from '../../components/use-user'
 
-import { useUpload } from "../utilities/runtime-helpers";
+import { useUpload } from "@/utilities/runtime-helpers";
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -21,7 +22,7 @@ function MainComponent() {
     documentType: "",
     fileKind: "",
   });
-  const formRef = React.useRef(null);
+  const formRef = useRef(null);
 
   // Add new state for delete confirmation
   const [deletingDoc, setDeletingDoc] = useState(null);

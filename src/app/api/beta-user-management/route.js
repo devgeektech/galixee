@@ -1,21 +1,16 @@
+import sql from "@/db";
+import { getSession } from "@/utilities/getSession"; // use named import
+import { NextResponse } from "next/server";
+
 async function handler(params) {
   try {
-    const session = getSession();
+    const session = await getSession();
 
     if (!session?.user?.id) {
-      return { error: "Authentication required" };
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    // Debug logging - check what we're receiving
-    console.log("Full params object:", params);
-    console.log("Params keys:", Object.keys(params || {}));
-
-    // Extract parameters - try both body and direct params
     const requestData = params.body || params;
-
-    console.log("Request data:", requestData);
-    console.log("Request data keys:", Object.keys(requestData || {}));
-
     const {
       action,
       userId,
@@ -33,89 +28,68 @@ async function handler(params) {
       userAgent,
     } = requestData || {};
 
-    console.log("Extracted action:", action);
-    console.log("Beta user management action:", action, "userId:", userId);
-
     if (!action) {
-      return {
-        error: "Action parameter is required",
-        debug: { receivedParams: params, extractedData: requestData },
-      };
+      return NextResponse.json(
+        {
+          error: "Action parameter is required",
+          debug: { receivedParams: params, extractedData: requestData },
+        },
+        { status: 400 }
+      );
     }
 
     switch (action) {
-      case "create_beta_user":
+      case "create_beta_user": {
         if (!userId && !email) {
-          return { error: "User ID or email required" };
+          return NextResponse.json({ error: "User ID or email required" }, { status: 400 });
         }
 
         let targetUserId = userId;
 
-        // If we have an email but no userId, try to find or create the user
         if (!targetUserId && email) {
-          const userResult =
-            await sql`SELECT id FROM auth_users WHERE email = ${email}`;
-
+          const userResult = await sql`SELECT id FROM auth_users WHERE email = ${email}`;
           if (userResult.length === 0) {
-            // User doesn't exist yet - create a placeholder user record
-            console.log("Creating placeholder user for email:", email);
             const newUser = await sql`
               INSERT INTO auth_users (email, name, "emailVerified")
               VALUES (${email}, ${email.split("@")[0]}, NULL)
               RETURNING id
             `;
             targetUserId = newUser[0].id;
-            console.log("Created placeholder user with ID:", targetUserId);
           } else {
             targetUserId = userResult[0].id;
           }
         }
 
-        // Check if user is already a beta user
         const existingBetaUser = await sql`
           SELECT id FROM beta_users WHERE user_id = ${targetUserId}
         `;
-
         if (existingBetaUser.length > 0) {
-          return { error: "User is already a beta user" };
+          return NextResponse.json({ error: "User is already a beta user" }, { status: 409 });
         }
 
-        // Create the beta user record
         const newBetaUser = await sql`
           INSERT INTO beta_users (user_id, beta_group, is_active, notes)
-          VALUES (${targetUserId}, ${betaGroup || "general"}, ${
-          isActive !== false
-        }, ${notes || ""})
+          VALUES (${targetUserId}, ${betaGroup || "general"}, ${isActive !== false}, ${notes || ""})
           RETURNING *
         `;
 
-        console.log("Created beta user:", newBetaUser[0]);
-        return { success: true, betaUser: newBetaUser[0] };
+        return NextResponse.json({ success: true, betaUser: newBetaUser[0] });
+      }
 
-      case "get_beta_users":
-        console.log("Fetching beta users from database...");
+      case "get_beta_users": {
         const offset = (page - 1) * limit;
-
         const betaUsers = await sql`
           SELECT 
-            bu.*,
-            au.name,
-            au.email,
-            au.image,
-            bu.is_active as status
+            bu.*, au.name, au.email, au.image, bu.is_active as status
           FROM beta_users bu
           JOIN auth_users au ON bu.user_id = au.id
           ORDER BY bu.created_at DESC
           LIMIT ${limit} OFFSET ${offset}
         `;
-
-        console.log("Found beta users:", betaUsers.length);
-
-        const totalCountResult =
-          await sql`SELECT COUNT(*) as count FROM beta_users`;
+        const totalCountResult = await sql`SELECT COUNT(*) as count FROM beta_users`;
         const totalCount = parseInt(totalCountResult[0].count);
 
-        return {
+        return NextResponse.json({
           success: true,
           betaUsers,
           pagination: {
@@ -124,11 +98,12 @@ async function handler(params) {
             totalCount,
             totalPages: Math.ceil(totalCount / limit),
           },
-        };
+        });
+      }
 
-      case "update_beta_user":
+      case "update_beta_user": {
         if (!userId) {
-          return { error: "User ID required" };
+          return NextResponse.json({ error: "User ID required" }, { status: 400 });
         }
 
         const setClauses = [];
@@ -149,7 +124,7 @@ async function handler(params) {
         }
 
         if (setClauses.length === 0) {
-          return { error: "No fields to update" };
+          return NextResponse.json({ error: "No fields to update" }, { status: 400 });
         }
 
         const updateQuery = `
@@ -161,66 +136,51 @@ async function handler(params) {
         values.push(userId);
 
         const updatedUser = await sql(updateQuery, values);
-
         if (updatedUser.length === 0) {
-          return { error: "Beta user not found" };
+          return NextResponse.json({ error: "Beta user not found" }, { status: 404 });
         }
 
-        return { success: true, betaUser: updatedUser[0] };
+        return NextResponse.json({ success: true, betaUser: updatedUser[0] });
+      }
 
-      case "delete_beta_user":
+      case "delete_beta_user": {
         if (!userId) {
-          return { error: "User ID required" };
+          return NextResponse.json({ error: "User ID required" }, { status: 400 });
         }
 
         const deletedUser = await sql`
-          DELETE FROM beta_users 
-          WHERE user_id = ${userId}
-          RETURNING *
+          DELETE FROM beta_users WHERE user_id = ${userId} RETURNING *
         `;
-
         if (deletedUser.length === 0) {
-          return { error: "Beta user not found" };
+          return NextResponse.json({ error: "Beta user not found" }, { status: 404 });
         }
 
-        return { success: true, message: "Beta user removed" };
+        return NextResponse.json({ success: true, message: "Beta user removed" });
+      }
 
-      case "get_beta_statistics":
-        console.log("Fetching beta statistics...");
-        const [
-          totalUsers,
-          activeUsers,
-          groupStats,
-          recentActivity,
-          feedbackStats,
-        ] = await sql.transaction([
-          sql`SELECT COUNT(*) as count FROM beta_users`,
-          sql`SELECT COUNT(*) as count FROM beta_users WHERE is_active = true`,
-          sql`
-            SELECT 
-              beta_group,
-              COUNT(*) as count,
-              COUNT(CASE WHEN is_active THEN 1 END) as active_count
-            FROM beta_users 
-            GROUP BY beta_group
-          `,
-          sql`
-            SELECT COUNT(*) as count 
-            FROM beta_activity_logs 
-            WHERE created_at >= NOW() - INTERVAL '7 days'
-          `,
-          sql`
-            SELECT 
-              COUNT(*) as total_feedback,
-              COUNT(CASE WHEN status = 'open' THEN 1 END) as open_feedback,
-              COUNT(CASE WHEN feedback_type = 'bug' THEN 1 END) as bug_reports
-            FROM beta_feedback
-          `,
-        ]);
+      case "get_beta_statistics": {
+        const [totalUsers, activeUsers, groupStats, recentActivity, feedbackStats] =
+          await sql.transaction([
+            sql`SELECT COUNT(*) as count FROM beta_users`,
+            sql`SELECT COUNT(*) as count FROM beta_users WHERE is_active = true`,
+            sql`
+              SELECT 
+                beta_group,
+                COUNT(*) as count,
+                COUNT(CASE WHEN is_active THEN 1 END) as active_count
+              FROM beta_users GROUP BY beta_group
+            `,
+            sql`SELECT COUNT(*) as count FROM beta_activity_logs WHERE created_at >= NOW() - INTERVAL '7 days'`,
+            sql`
+              SELECT 
+                COUNT(*) as total_feedback,
+                COUNT(CASE WHEN status = 'open' THEN 1 END) as open_feedback,
+                COUNT(CASE WHEN feedback_type = 'bug' THEN 1 END) as bug_reports
+              FROM beta_feedback
+            `,
+          ]);
 
-        console.log("Statistics fetched successfully");
-
-        return {
+        return NextResponse.json({
           success: true,
           statistics: {
             totalBetaUsers: parseInt(totalUsers[0].count),
@@ -229,11 +189,13 @@ async function handler(params) {
             recentActivityCount: parseInt(recentActivity[0].count),
             feedbackStats: feedbackStats[0],
           },
-        };
+        });
+      }
 
-      case "log_activity":
+      // ✅ LOG ACTIVITY
+      case "log_activity": {
         if (!activityAction) {
-          return { error: "Activity action required" };
+          return NextResponse.json({ error: "Activity action required" }, { status: 400 });
         }
 
         await sql`
@@ -251,52 +213,54 @@ async function handler(params) {
           )
         `;
 
-        return { success: true, message: "Activity logged" };
+        return NextResponse.json({ success: true, message: "Activity logged" });
+      }
 
-      case "get_user_activity":
+      // ✅ GET USER ACTIVITY
+      case "get_user_activity": {
         if (!userId) {
-          return { error: "User ID required" };
+          return NextResponse.json({ error: "User ID required" }, { status: 400 });
         }
 
         const activityOffset = (page - 1) * limit;
-
         const userActivity = await sql`
           SELECT * FROM beta_activity_logs 
           WHERE user_id = ${userId}
           ORDER BY created_at DESC
           LIMIT ${limit} OFFSET ${activityOffset}
         `;
-
-        const activityCountResult = await sql`
+        const countResult = await sql`
           SELECT COUNT(*) as count FROM beta_activity_logs WHERE user_id = ${userId}
         `;
+        const totalCount = parseInt(countResult[0].count);
 
-        return {
+        return NextResponse.json({
           success: true,
           activity: userActivity,
           pagination: {
             page,
             limit,
-            totalCount: parseInt(activityCountResult[0].count),
-            totalPages: Math.ceil(
-              parseInt(activityCountResult[0].count) / limit
-            ),
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
           },
-        };
+        });
+      }
 
+      // ✅ INVALID ACTION
       default:
-        console.log("Invalid action received:", action);
-        console.log(
-          "Available actions: create_beta_user, get_beta_users, update_beta_user, delete_beta_user, get_beta_statistics, log_activity, get_user_activity"
-        );
-        return { error: `Invalid action: ${action}` };
+        return NextResponse.json({ error: `Invalid action: ${action}` }, { status: 400 });
     }
   } catch (error) {
     console.error("Beta user management error:", error);
-    console.error("Error stack:", error.stack);
-    return { error: "Internal server error", details: error.message };
+    return NextResponse.json(
+      { error: "Internal server error", details: error.message },
+      { status: 500 }
+    );
   }
 }
+
+// ✅ Route Handler
 export async function POST(request) {
-  return handler(await request.json());
+  const body = await request.json();
+  return handler(body);
 }

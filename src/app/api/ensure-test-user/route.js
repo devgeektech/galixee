@@ -85,11 +85,18 @@ async function handler() {
     return {
       success: false,
       error: "Failed to ensure test user exists",
-      details: error.message,
       step: "database_operation",
     };
   }
 }
 export async function POST(request) {
-  return handler(await request.json());
+  let body = {};
+  try {
+    const text = await request.text();
+    body = text ? JSON.parse(text) : {};
+  } catch (e) {
+    // ignore malformed/empty JSON
+  }
+  const result = await handler(body);
+  return Response.json(result || {});
 }

@@ -19,7 +19,6 @@ function MainComponent() {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   useEffect(() => {
-   console.log("user issssssss",user)
     if (!userLoading && !user) {
       const currentPath = encodeURIComponent(window.location.pathname);
       //window.location.href = `/account/signin?callbackUrl=${currentPath}`;
@@ -296,11 +295,11 @@ function MainComponent() {
       </nav>
 
       <main className="pt-24 px-6 pb-16 max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 gap-4">
           <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#6366F1] to-[#4FD1C5]">
             Beta Testing Dashboard
           </h1>
-          <div className="flex space-x-4">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={async () => {
                 try {

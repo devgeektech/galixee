@@ -4,7 +4,7 @@ import getSession from "@/utilities/getSession";
 async function handler({ method, id, ...data }) {
   const session = await getSession();
   if (!session?.user?.id) {
-      return NextResponse.json( {error: "Not authenticated" });
+      return NextResponse.json({error: "Not authenticated" });
   }
 
   const userId = session.user.id;

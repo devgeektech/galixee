@@ -1,20 +1,23 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
 async function handler({ phone, content, scheduledDate, recipientName }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return NextResponse.json({error: "Unauthorized" });
   }
 
   if (!phone || !content) {
-    return { error: "Phone number and message content are required" };
+   return NextResponse.json({ error: "Phone number and message content are required" });
   }
 
   // Validate phone number format (E.164)
   const phoneRegex = /^\+[1-9]\d{1,14}$/;
   if (!phoneRegex.test(phone)) {
-    return {
+   return NextResponse.json({
       error:
         "Invalid phone number format. Must be E.164 format (e.g. +1234567890)",
-    };
+    });
   }
 
   try {
@@ -63,10 +66,10 @@ async function handler({ phone, content, scheduledDate, recipientName }) {
           WHERE id = ${savedMessage.id}
         `;
 
-        return {
+      return NextResponse.json({
           message: "Message sent successfully! (Simulated in sandbox)",
           data: savedMessage,
-        };
+        });
       } catch (smsError) {
         const errorMessage = smsError.message || "Unknown SMS error";
         await sql`
@@ -78,21 +81,21 @@ async function handler({ phone, content, scheduledDate, recipientName }) {
         `;
 
         console.error("SMS Error:", smsError);
-        return {
+        return NextResponse.json({
           error: "Failed to send SMS: " + errorMessage,
           data: savedMessage,
-        };
+        });
       }
     } else {
       // For scheduled messages, just return success
-      return {
+      return NextResponse.json({
         message: "Message scheduled successfully!",
         data: savedMessage,
-      };
+      });
     }
   } catch (error) {
     console.error("Database Error:", error);
-    return { error: "Failed to process message: " + error.message };
+   return NextResponse.json({error: "Failed to process message: " + error.message });
   }
 }
 export async function POST(request) {

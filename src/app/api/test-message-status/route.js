@@ -1,12 +1,13 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
 async function handler({ messageId }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+  return NextResponse.json({ error: "Unauthorized" });
   }
 
   try {
-    console.log("Debug - Fetching messages for user:", session.user.id);
-
     // Get messages for the current user
     const messages = await sql`
       SELECT 
@@ -25,21 +26,19 @@ async function handler({ messageId }) {
       LIMIT 50
     `;
 
-    console.log("Debug - Retrieved messages count:", messages?.length);
-    console.log("Debug - First message (if any):", messages?.[0]);
-
-    return {
+  
+    return NextResponse.json({
       success: true,
       data: messages || [],
-    };
+    });
   } catch (error) {
     console.error("Error in test-message-status:", error);
-    return {
+    return NextResponse.json({
       success: false,
       error: "Failed to fetch message status",
       details: error.message,
       data: [],
-    };
+    });
   }
 }
 export async function POST(request) {

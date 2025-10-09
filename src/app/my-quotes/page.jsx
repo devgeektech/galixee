@@ -1,5 +1,6 @@
 "use client";
-import React from "react";
+import {React,useState, useEffect}  from "react";
+import useUser from '../../components/use-user'
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -88,7 +89,7 @@ function MainComponent() {
         source: "",
         notes: "",
       });
-      setIsAddingQuote(false);
+      //setIsAddingQuote(false);
       setError(null);
     } catch (err) {
       console.error("Error adding quote:", err);
@@ -191,6 +192,7 @@ function MainComponent() {
     );
 
     const handleSubmit = (e) => {
+      console.log('ssssssssssssssssssssss')
       e.preventDefault();
       onSubmit(formData);
     };

@@ -1,5 +1,6 @@
 "use client";
-import React from "react";
+import {React,useState, useCallback, useEffect}  from "react";
+import useUser from '../../components/use-user'
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -110,7 +111,7 @@ function MainComponent() {
   };
 
   // Load existing data when component mounts
-  React.useEffect(() => {
+  useEffect(() => {
     let isMounted = true;
 
     const loadExistingData = async () => {

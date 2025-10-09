@@ -1,7 +1,10 @@
+import sql from "@/db";
+import { NextResponse } from "next/server";
+import getSession from "@/utilities/getSession";
 async function handler({ method, id, ...data }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Not authenticated" };
+      return NextResponse.json( {error: "Not authenticated" });
   }
 
   const userId = session.user.id;
@@ -15,7 +18,7 @@ async function handler({ method, id, ...data }) {
           ORDER BY created_at DESC 
           LIMIT 1
         `;
-        return { data: questionnaire[0] || null };
+         return NextResponse.json(  { data: questionnaire[0] || null });
       }
 
       case "POST": {
@@ -121,7 +124,7 @@ async function handler({ method, id, ...data }) {
             WHERE id = ${existingQuestionnaire.id} AND user_id = ${userId}
             RETURNING *
           `;
-          return { data: questionnaire };
+           return NextResponse.json( { data: questionnaire });
         } else {
           // If doesn't exist, create new
           const [questionnaire] = await sql`
@@ -241,16 +244,16 @@ async function handler({ method, id, ...data }) {
               ${data.preferred_hospital || null}
             ) RETURNING *
           `;
-          return { data: questionnaire };
+           return NextResponse.json({data: questionnaire });
         }
       }
 
       default:
-        return { error: "Method not allowed" };
+         return NextResponse.json({ error: "Method not allowed" });
     }
   } catch (error) {
     console.error("Health questionnaire handler error:", error);
-    return { error: "Internal server error" };
+     return NextResponse.json({error: "Internal server error" });
   }
 }
 export async function POST(request) {

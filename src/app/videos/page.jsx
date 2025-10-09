@@ -1,7 +1,7 @@
 "use client";
-import React from "react";
-
-import { useUpload } from "../utilities/runtime-helpers";
+import {React,useState, useEffect}  from "react";
+import useUser from '../../components/use-user'
+import { useUpload } from "../../utilities/runtime-helpers";
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -9,7 +9,7 @@ function MainComponent() {
   const [loading, setLoading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isAddingAlbum, setIsAddingAlbum] = useState(false);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(null);
   const [error, setError] = useState(null);
   const [upload, { loading: uploadLoading }] = useUpload();
   const [newAlbumTitle, setNewAlbumTitle] = useState("");
@@ -20,8 +20,8 @@ function MainComponent() {
   const [loadingComments, setLoadingComments] = useState(false);
   const [isAlbumOwner, setIsAlbumOwner] = useState(false);
 
-  // Add constants for upload limits
-  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB limit
+  // Upload limits
+  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
   const ACCEPTED_VIDEO_TYPES = [
     "video/mp4",
     "video/quicktime",
@@ -30,55 +30,30 @@ function MainComponent() {
     "video/ogg",
   ];
 
-  const features = [
-    {
-      title: "End of Life Planning",
-      icon: "fa-scroll",
-      description: "Plan for the future",
-      href: user
-        ? "/end-of-life-planning"
-        : "/account/signin?callbackUrl=/end-of-life-planning",
-    },
-    {
-      title: "Video Albums",
-      icon: "fa-folder",
-      description: "Organize your videos",
-      href: "/videos",
-    },
-    {
-      title: "Upload Videos",
-      icon: "fa-upload",
-      description: "Upload your videos",
-      href: "/videos/upload",
-    },
-    {
-      title: "Comments",
-      icon: "fa-comment",
-      description: "Add comments to videos",
-      href: "/videos/comments",
-    },
-    {
-      title: "Search",
-      icon: "fa-search",
-      description: "Search for videos",
-      href: "/videos/search",
-    },
-    {
-      title: "Settings",
-      icon: "fa-cog",
-      description: "Manage your account",
-      href: "/account/settings",
-    },
-  ];
+  // Ensure media URLs are absolute when rendering
+  const getAbsoluteUrl = (u) => {
+    if (!u) return u;
+    try {
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      const base = typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'http://localhost:3000';
+      return u.startsWith('/') ? `${base}${u}` : `${base}/${u}`;
+    } catch {
+      return u;
+    }
+  };
 
+  // Load albums when user available
   useEffect(() => {
     if (!userLoading && !user) {
       const currentPath = encodeURIComponent(window.location.pathname);
       window.location.href = `/account/signin?callbackUrl=${currentPath}`;
       return;
     }
-
-    fetchAlbums();
+    if (user && !userLoading) {
+      fetchAlbums();
+    }
   }, [user, userLoading]);
 
   const fetchAlbums = async () => {
@@ -89,20 +64,10 @@ function MainComponent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "getAlbums" }),
       });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch albums: ${response.status} ${response.statusText}`
-        );
-      }
-
+      if (!response.ok) throw new Error(`Failed to fetch albums: ${response.status}`);
       const data = await response.json();
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
-
-      // Ensure we have an array of albums, even if empty
-      setAlbums(data?.albums || []);
+      if (data?.error) throw new Error(data.error);
+      setAlbums(data.albums || []);
     } catch (err) {
       console.error("Error fetching albums:", err);
       setError("Failed to load video albums. Please try again later.");
@@ -121,26 +86,14 @@ function MainComponent() {
           action: "createAlbum",
           title: newAlbumTitle,
           description: newAlbumDescription,
-          visibility: "private", // Default to private
+          visibility: "private",
         }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create album");
-      }
-
+      if (!response.ok) throw new Error("Failed to create album");
       const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Initialize the videos array for the new album
-      const newAlbum = {
-        ...data.album,
-        videos: [],
-      };
-
-      setAlbums([newAlbum, ...albums]);
+      if (data.error) throw new Error(data.error);
+      const newAlbum = { ...data.album, videos: [] };
+      setAlbums((prev) => [newAlbum, ...(prev || [])]);
       setIsAddingAlbum(false);
       setNewAlbumTitle("");
       setNewAlbumDescription("");
@@ -152,68 +105,35 @@ function MainComponent() {
 
   const handleVideoUpload = async (albumId, files) => {
     if (!files || files.length === 0) return;
-
     setError(null);
     setIsUploadingVideo(albumId);
-
     try {
       const newVideos = [];
-      // Upload each file sequentially
       for (const file of files) {
-        // Validate file size
         if (file.size > MAX_FILE_SIZE) {
-          throw new Error(
-            `Video "${file.name}" is too large. Maximum size is 25MB.`
-          );
+          throw new Error(`Video "${file.name}" is too large. Maximum size is 100MB.`);
         }
-
-        // Validate file type
         if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
-          throw new Error(
-            `Invalid file type for "${file.name}". Please upload MP4, MOV, M4V, WebM, or OGG videos.`
-          );
+          throw new Error(`Invalid file type for "${file.name}". Please upload MP4, MOV, M4V, WebM, or OGG videos.`);
         }
-
-        // Upload the file and get the URL
         const { url, error: uploadError } = await upload({ file });
-        if (uploadError) {
-          throw new Error(uploadError);
-        }
-
-        // Save the video in the database
+        if (uploadError) throw new Error(uploadError);
         const response = await fetch("/api/videos-handler", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "addVideo",
-            albumId,
-            videoUrl: url,
-          }),
+          body: JSON.stringify({ action: "addVideo", albumId, videoUrl: url }),
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to save video");
-        }
-
+        if (!response.ok) throw new Error("Failed to save video");
         const data = await response.json();
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
+        if (data.error) throw new Error(data.error);
         newVideos.push(data.video);
       }
-
-      // Update the local state with all new videos at once
-      setAlbums(
-        albums.map((album) => {
-          if (album.id === albumId) {
-            return {
-              ...album,
-              videos: [...(album.videos || []), ...newVideos],
-            };
-          }
-          return album;
-        })
+      setAlbums((prev) =>
+        (prev || []).map((album) =>
+          album.id === albumId
+            ? { ...album, videos: [...(album.videos || []), ...newVideos] }
+            : album
+        )
       );
     } catch (err) {
       console.error("Error uploading video:", err);
@@ -222,6 +142,7 @@ function MainComponent() {
       setIsUploadingVideo(null);
     }
   };
+
 
   const handleDeleteVideo = async (albumId, videoId) => {
     try {
@@ -238,12 +159,12 @@ function MainComponent() {
         throw new Error("Failed to delete video");
       }
 
-      setAlbums(
-        albums.map((album) => {
+      setAlbums((prev) =>
+        (prev || []).map((album) => {
           if (album.id === albumId) {
             return {
               ...album,
-              videos: album.videos.filter((video) => video.id !== videoId),
+              videos: (album.videos || []).filter((video) => video.id !== videoId),
             };
           }
           return album;
@@ -278,7 +199,7 @@ function MainComponent() {
         throw new Error("Failed to delete album");
       }
 
-      setAlbums(albums.filter((album) => album.id !== albumId));
+      setAlbums((prev) => (prev || []).filter((album) => album.id !== albumId));
     } catch (err) {
       console.error("Error deleting album:", err);
       setError("Failed to delete album. Please try again.");
@@ -613,10 +534,21 @@ function MainComponent() {
                           e.stopPropagation();
                           handleDeleteAlbum(album.id);
                         }}
-                        className="flex items-center justify-center w-8 h-8 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm transition-colors"
+                        className="relative group flex items-center justify-center w-9 h-9 rounded-full border border-red-500/40 text-red-400 hover:text-white hover:bg-red-600/90 hover:border-red-500 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                        aria-label="Delete Album"
                         title="Delete Album"
                       >
-                        <i className="fas fa-trash"></i>
+                        {/* Visible trash icon (inherits currentColor) */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="w-4 h-4"
+                          aria-hidden="true"
+                        >
+                          <path d="M9 3a1 1 0 0 0-1 1v1H5.5a1 1 0 1 0 0 2H6v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7h.5a1 1 0 1 0 0-2H16V4a1 1 0 0 0-1-1H9zm2 2h4v1h-4V5zM8 7h10v12a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V7zm3 3a1 1 0 0 0-1 1v6a1 1 0 1 0 2 0v-6a1 1 0 0 0-1-1zm4 0a1 1 0 0 0-1 1v6a1 1 0 1 0 2 0v-6a1 1 0 0 0-1-1z"/>
+                        </svg>
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">Delete album</span>
                       </button>
                     </div>
                   </div>
@@ -637,7 +569,7 @@ function MainComponent() {
                             onClick={(e) => handleVideoClick(video, e)}
                           >
                             <video
-                              src={video.video_url}
+                              src={getAbsoluteUrl(video.video_url)}
                               className="w-full h-full rounded-lg"
                               controls
                             />
@@ -677,7 +609,7 @@ function MainComponent() {
             {/* Left side - Video */}
             <div className="flex-1 flex items-center justify-center">
               <video
-                src={selectedVideo.video_url}
+                src={getAbsoluteUrl(selectedVideo.video_url)}
                 controls
                 className="max-h-[85vh] max-w-full rounded-lg"
               />

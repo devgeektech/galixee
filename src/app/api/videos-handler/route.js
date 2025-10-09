@@ -1,3 +1,6 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
 async function handler({
   action,
   albumId,
@@ -13,9 +16,9 @@ async function handler({
   requestId,
   status,
 }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+   return NextResponse.json({  error: "Unauthorized" });
   }
 
   const userId = session.user.id;
@@ -27,7 +30,7 @@ async function handler({
         VALUES (${userId}, ${title}, ${description}, ${visibility})
         RETURNING id, title, description, visibility, created_at
       `;
-      return { album: result[0] };
+     return NextResponse.json({ album: result[0] });
     }
 
     case "getAlbums": {
@@ -37,7 +40,7 @@ async function handler({
         ORDER BY created_at DESC
       `;
 
-      // Fetch videos for each album
+      // Fetch videos for each album and return plain JS objects
       const albumsWithVideos = await Promise.all(
         albums.map(async (album) => {
           const videos = await sql`
@@ -47,12 +50,12 @@ async function handler({
           `;
           return {
             ...album,
-            videos: videos,
+            videos: videos || [],
           };
         })
       );
 
-      return { albums: albumsWithVideos };
+      return NextResponse.json({ albums: albumsWithVideos });
     }
 
     case "addVideo": {
@@ -61,7 +64,7 @@ async function handler({
         VALUES (${albumId}, ${userId}, ${videoUrl}, ${caption}, ${labels})
         RETURNING id, video_url, caption, labels, created_at
       `;
-      return { video: result[0] };
+     return NextResponse.json({video: result[0] });
     }
 
     case "getVideos": {
@@ -72,7 +75,7 @@ async function handler({
         WHERE v.album_id = ${albumId}
         ORDER BY v.created_at DESC
       `;
-      return { videos };
+     return NextResponse.json({ videos });
     }
 
     case "addComment": {
@@ -98,13 +101,13 @@ async function handler({
         SELECT name, image FROM auth_users WHERE id = ${userId}
       `;
 
-      return {
+      return NextResponse.json({
         comment: {
           ...result[0],
           user_name: user[0]?.name,
           user_image: user[0]?.image,
         },
-      };
+      });
     }
 
     case "getComments": {
@@ -140,7 +143,7 @@ async function handler({
         `;
       }
 
-      return { comments, isOwner };
+      return NextResponse.json({comments, isOwner });
     }
 
     case "approveComment": {
@@ -158,10 +161,10 @@ async function handler({
       `;
 
       if (!result[0]) {
-        return { error: "Unauthorized or comment not found" };
+        return NextResponse.json({error: "Unauthorized or comment not found" });
       }
 
-      return { updated: result[0] };
+      return NextResponse.json({ updated: result[0] });
     }
 
     case "declineComment": {
@@ -179,10 +182,10 @@ async function handler({
       `;
 
       if (!result[0]) {
-        return { error: "Unauthorized or comment not found" };
+        return NextResponse.json({ error: "Unauthorized or comment not found" });
       }
 
-      return { updated: result[0] };
+     return NextResponse.json({ updated: result[0] });
     }
 
     case "createAddRequest": {
@@ -191,7 +194,7 @@ async function handler({
         VALUES (${albumId}, ${userId}, ${videoUrl}, ${caption}, ${labels})
         RETURNING id, video_url, caption, labels, status, created_at
       `;
-      return { request: result[0] };
+      return NextResponse.json({request: result[0] });
     }
 
     case "getAddRequests": {
@@ -202,7 +205,7 @@ async function handler({
         WHERE var.album_id = ${albumId}
         ORDER BY var.created_at DESC
       `;
-      return { requests };
+     return NextResponse.json({requests });
     }
 
     case "updateRequestStatus": {
@@ -227,7 +230,7 @@ async function handler({
         }
       }
 
-      return { updated: result[0] };
+      return NextResponse.json({ updated: result[0] });
     }
 
     case "deleteVideo": {
@@ -236,7 +239,7 @@ async function handler({
         WHERE id = ${videoId} AND user_id = ${userId}
         RETURNING id
       `;
-      return { deleted: result[0] };
+     return NextResponse.json({deleted: result[0] });
     }
 
     case "deleteAlbum": {
@@ -245,11 +248,11 @@ async function handler({
         WHERE id = ${albumId} AND user_id = ${userId}
         RETURNING id
       `;
-      return { deleted: result[0] };
+      return NextResponse.json({deleted: result[0] });
     }
 
     default:
-      return { error: "Invalid action" };
+     return NextResponse.json({error: "Invalid action" });
   }
 }
 export async function POST(request) {

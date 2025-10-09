@@ -8,13 +8,19 @@ const pool = new Pool({
     "postgres://postgres:mypassword@localhost:5432/mydatabase",
 });
 
-// A proper tagged template function for parameterized queries
 export default async function sql(strings, ...values) {
+  // Handle plain string queries (e.g., sql(queryText, ...params))
+  if (typeof strings === 'string') {
+    const res = await pool.query(strings, values);
+    return res.rows;
+  }
+
+  // Handle tagged template literals (e.g., sql`SELECT * FROM table WHERE id = ${id}`)
   let text = "";
   for (let i = 0; i < strings.length; i++) {
     text += strings[i];
     if (i < values.length) {
-      text += `$${i + 1}`; // ✅ PostgreSQL placeholders start from $1
+      text += `$${i + 1}`;
     }
   }
 

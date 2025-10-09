@@ -1,7 +1,8 @@
 "use client";
-import React from "react";
+import {React,useState, useEffect, useMemo}  from "react";
+import useUser from '../../components/use-user'
 
-import { useUpload } from "../utilities/runtime-helpers";
+import { useUpload } from "../../utilities/runtime-helpers";
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -22,6 +23,9 @@ function MainComponent() {
   const [selectedFiles, setSelectedFiles] = useState(null);
   const [showTypeSelection, setShowTypeSelection] = useState(false);
   const [selectedFileType, setSelectedFileType] = useState(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newIsPublic, setNewIsPublic] = useState(false);
   const [isLoadingCreations, setIsLoadingCreations] = useState(false);
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [showProtectionTypeModal, setShowProtectionTypeModal] = useState(false);
@@ -62,6 +66,32 @@ function MainComponent() {
       clearTimeout(timeout);
       timeout = setTimeout(later, wait);
     };
+  };
+
+  // Build absolute URL for media
+  const getAbsoluteUrl = (u) => {
+    if (!u) return u;
+    try {
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      const base = typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "http://localhost:3000";
+      return u.startsWith("/") ? `${base}${u}` : `${base}/${u}`;
+    } catch {
+      return u;
+    }
+  };
+
+  const isImageLike = (url, mimeType) => {
+    if (mimeType?.startsWith("image/")) return true;
+    const lower = (url || "").toLowerCase();
+    return [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"].some(ext => lower.endsWith(ext));
+  };
+
+  const isVideoLike = (url, mimeType) => {
+    if (mimeType?.startsWith("video/")) return true;
+    const lower = (url || "").toLowerCase();
+    return [".mp4", ".webm", ".ogg", ".mov", ".m4v"].some(ext => lower.endsWith(ext));
   };
 
   const debouncedFetchCreations = useMemo(
@@ -193,6 +223,11 @@ function MainComponent() {
     console.log("Files selected:", files.length);
     setSelectedFiles(files);
     setShowTypeSelection(true);
+    // Prefill title from first file
+    try {
+      const first = files[0];
+      if (first?.name) setNewTitle(first.name);
+    } catch {}
   };
 
   const handleUpload = async () => {
@@ -215,7 +250,7 @@ function MainComponent() {
         console.log("Starting upload for file:", file.name);
 
         // First upload the file to get the URL
-        const { url, error: uploadError } = await upload({ file });
+        const { url, mimeType, error: uploadError } = await upload({ file });
 
         if (uploadError) {
           console.error("Upload error:", uploadError);
@@ -229,13 +264,15 @@ function MainComponent() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            method: "create",
-            title: file.name,
-            description: "",
+            method: "POST",
+            action: "create",
+            title: newTitle || file.name,
+            description: newDescription || "",
             creationType: selectedFileType,
             fileUrl: url,
             thumbnailUrl: url,
-            isPublic: false,
+            isPublic: Boolean(newIsPublic),
+            metadata: mimeType ? { mimeType } : {},
           }),
         });
 
@@ -266,6 +303,9 @@ function MainComponent() {
       setSelectedFiles(null);
       setShowTypeSelection(false);
       setSelectedFileType(null);
+      setNewTitle("");
+      setNewDescription("");
+      setNewIsPublic(false);
 
       // Fetch latest creations to ensure UI is up to date
       await fetchCreations();
@@ -283,6 +323,9 @@ function MainComponent() {
     setSelectedFiles(null);
     setShowTypeSelection(false);
     setSelectedFileType(null);
+    setNewTitle("");
+    setNewDescription("");
+    setNewIsPublic(false);
   };
 
   const getCreationType = (mimeType) => {
@@ -385,7 +428,7 @@ function MainComponent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          method: "update",
+          method: "PUT",
           id: creationId,
           creationType: newType,
           title: selectedCreation.title,
@@ -432,7 +475,7 @@ function MainComponent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          method: "delete",
+          method: "DELETE",
           id: creationId,
         }),
       });
@@ -455,38 +498,42 @@ function MainComponent() {
     const creationType = creationTypes.find(
       (t) => t.id === creation.creation_type
     );
+    const url = getAbsoluteUrl(creation.file_url || creation.fileUrl);
+    const mime = creation.metadata?.mimeType || creation.mimeType;
 
-    if (
-      creation.creation_type === "picture" ||
-      creation.creation_type === "painting" ||
-      creation.creation_type === "drawing"
-    ) {
+    if (isImageLike(url, mime)) {
       return (
         <img
-          src={creation.file_url || creation.fileUrl}
+          src={url}
           alt={creation.title}
           className="w-full rounded-lg"
         />
       );
-    } else {
+    }
+
+    if (isVideoLike(url, mime)) {
       return (
-        <div className="w-full flex flex-col items-center justify-center bg-[#242424] rounded-lg p-8">
-          <i
-            className={`fas ${
-              creationType?.icon || "fa-file"
-            } text-4xl text-[#6366F1] mb-4`}
-          ></i>
-          <a
-            href={creation.file_url || creation.fileUrl}
-            download={creation.title}
-            onClick={(e) => e.stopPropagation()}
-            className="px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg text-white transition-colors"
-          >
-            Download File
-          </a>
-        </div>
+        <video src={url} controls className="w-full rounded-lg bg-black" />
       );
     }
+
+    return (
+      <div className="w-full flex flex-col items-center justify-center bg-[#242424] rounded-lg p-8">
+        <i
+          className={`fas ${
+            creationType?.icon || "fa-file"
+          } text-4xl text-[#6366F1] mb-4`}
+        ></i>
+        <a
+          href={url}
+          download={creation.title}
+          onClick={(e) => e.stopPropagation()}
+          className="px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg text-white transition-colors"
+        >
+          Download File
+        </a>
+      </div>
+    );
   };
 
   const getRecommendedProtectionType = (creationType) => {
@@ -734,7 +781,7 @@ function MainComponent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          method: "update",
+          method: "PUT",
           id: selectedCreation.id,
           title: formData.title,
           description: formData.description,
@@ -864,6 +911,91 @@ function MainComponent() {
               </div>
             </div>
 
+            {showTypeSelection && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-6 w-full max-w-xl">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-xl font-bold">Add Details</h3>
+                    <button onClick={cancelUpload} className="text-gray-400 hover:text-white">
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Title</label>
+                      <input
+                        type="text"
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        className="w-full bg-[#242424] border border-[#333333] rounded-lg px-4 py-2 text-white"
+                        placeholder="Enter a title"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Description</label>
+                      <textarea
+                        value={newDescription}
+                        onChange={(e) => setNewDescription(e.target.value)}
+                        className="w-full bg-[#242424] border border-[#333333] rounded-lg px-4 py-2 text-white min-h-[80px]"
+                        placeholder="Optional description"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">Creation Type</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {creationTypes.map((type) => (
+                          <button
+                            key={type.id}
+                            type="button"
+                            onClick={() => setSelectedFileType(type.id)}
+                            className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                              selectedFileType === type.id
+                                ? "border-[#6366F1] bg-[#6366F1]/10"
+                                : "border-[#333333] hover:border-[#6366F1]"
+                            }`}
+                          >
+                            <i className={`fas ${type.icon} mr-2`}></i>
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={newIsPublic}
+                        onChange={(e) => setNewIsPublic(e.target.checked)}
+                        className="rounded bg-[#242424] border-[#333333] text-[#6366F1] focus:ring-[#6366F1]"
+                      />
+                      <span className="text-gray-300">Make public</span>
+                    </label>
+
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={cancelUpload}
+                        className="px-4 py-2 border border-[#333333] rounded-lg text-gray-300 hover:border-[#6366F1]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleUpload}
+                        disabled={isUploading || !selectedFileType}
+                        className="px-4 py-2 bg-[#6366F1] hover:bg-[#4F46E5] rounded-lg text-white disabled:opacity-50"
+                      >
+                        {isUploading ? "Uploading..." : "Upload"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Collections</h2>
@@ -979,23 +1111,33 @@ function MainComponent() {
                           : "w-16 h-16 relative mr-4"
                       }
                     >
-                      {creation.creation_type === "picture" ||
-                      creation.creation_type === "painting" ||
-                      creation.creation_type === "drawing" ? (
-                        <img
-                          src={creation.file_url || creation.fileUrl}
-                          alt={creation.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-[#242424]">
-                          <i
-                            className={`fas ${
-                              creationType?.icon || "fa-file"
-                            } text-2xl text-[#6366F1]`}
-                          ></i>
-                        </div>
-                      )}
+                      {(() => {
+                        const url = getAbsoluteUrl(creation.file_url || creation.fileUrl);
+                        const mime = creation.metadata?.mimeType || creation.mimeType;
+                        if (isImageLike(url, mime)) {
+                          return (
+                            <img
+                              src={url}
+                              alt={creation.title}
+                              className="w-full h-full object-cover"
+                            />
+                          );
+                        }
+                        if (isVideoLike(url, mime)) {
+                          return (
+                            <video src={url} className="w-full h-full object-cover bg-black" />
+                          );
+                        }
+                        return (
+                          <div className="w-full h-full flex items-center justify-center bg-[#242424]">
+                            <i
+                              className={`fas ${
+                                creationType?.icon || "fa-file"
+                              } text-2xl text-[#6366F1]`}
+                            ></i>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className={viewMode === "grid" ? "p-4" : ""}>
                       <h3 className="font-medium text-white mb-1">

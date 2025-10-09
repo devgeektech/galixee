@@ -1,3 +1,7 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
+
 async function handler({
   method,
   userId,
@@ -7,9 +11,9 @@ async function handler({
   creationId,
   action,
 }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+   return NextResponse.json({ error: "Unauthorized" });
   }
 
   switch (method) {
@@ -30,13 +34,13 @@ async function handler({
         ]);
 
         if (collection.length === 0) {
-          return { error: "Collection not found" };
+          return NextResponse.json({ error: "Collection not found" });
         }
 
-        return {
+      return NextResponse.json({
           collection: collection[0],
           items: items,
-        };
+        });
       }
 
       // Get all collections for user
@@ -45,7 +49,7 @@ async function handler({
         WHERE user_id = ${session.user.id}
         ORDER BY created_at DESC
       `;
-      return { collections };
+      return NextResponse.json({collections });
     }
 
     case "POST": {
@@ -57,7 +61,7 @@ async function handler({
           ON CONFLICT (collection_id, creation_id) DO NOTHING
           RETURNING *
         `;
-        return { item: result[0] };
+        return NextResponse.json({ item: result[0] });
       }
 
       // Create new collection
@@ -66,7 +70,7 @@ async function handler({
         VALUES (${session.user.id}, ${name}, ${description})
         RETURNING *
       `;
-      return { collection: result[0] };
+      return NextResponse.json({collection: result[0] });
     }
 
     case "PUT": {
@@ -81,9 +85,9 @@ async function handler({
       `;
 
       if (result.length === 0) {
-        return { error: "Collection not found" };
+       return NextResponse.json({ error: "Collection not found" });
       }
-      return { collection: result[0] };
+      return NextResponse.json({ collection: result[0] });
     }
 
     case "DELETE": {
@@ -109,11 +113,11 @@ async function handler({
           AND user_id = ${session.user.id}
         `,
       ]);
-      return { success: true };
+      return NextResponse.json({ success: true });
     }
 
     default:
-      return { error: "Method not allowed" };
+      return NextResponse.json({error: "Method not allowed" });
   }
 }
 export async function POST(request) {

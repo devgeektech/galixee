@@ -36,11 +36,7 @@ function MainComponent() {
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
       const response = await fetch("/api/scheduled-messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ method: "GET" }),
+        method: "GET",
         signal: controller.signal,
       });
 
@@ -73,7 +69,7 @@ useEffect(() => {
     if (!userLoading && user) {
       fetchMessages();
     }
-  }, [user, userLoading]);
+  }, [userLoading]);
 
   const MessageForm = ({ onSubmit, onCancel, initialData }) => {
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -161,7 +157,7 @@ useEffect(() => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-6 w-full max-w-md">
+        <div className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
           <h3 className="text-xl font-bold mb-4 text-white">
             {initialData ? "Edit Scheduled Message" : "Schedule New Message"}
           </h3>
@@ -414,14 +410,11 @@ useEffect(() => {
 
       try {
         const response = await fetch("/api/scheduled-messages", {
-          method: "POST",
+          method: "DELETE",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            method: "DELETE",
-            id: message.id,
-          }),
+          body: JSON.stringify({ id: message.id }),
         });
 
         if (!response.ok) {
@@ -639,15 +632,15 @@ useEffect(() => {
             onSubmit={async (formData) => {
               try {
                 const response = await fetch("/api/scheduled-messages", {
-                  method: "POST",
+                  method: editingMessage ? "PUT" : "POST",
                   headers: {
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify({
-                    method: editingMessage ? "PUT" : "POST",
-                    id: editingMessage?.id,
-                    ...formData,
-                  }),
+                  body: JSON.stringify(
+                    editingMessage
+                      ? { id: editingMessage.id, ...formData }
+                      : { ...formData }
+                  ),
                 });
 
                 if (!response.ok) {

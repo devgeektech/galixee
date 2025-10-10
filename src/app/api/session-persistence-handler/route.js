@@ -1,5 +1,8 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
 async function handler({ action, sessionData, userId, email }) {
-  const session = getSession();
+  const session = await getSession();
 
   if (action === "validate") {
     if (!session || !session.user) {

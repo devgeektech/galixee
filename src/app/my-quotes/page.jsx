@@ -1,5 +1,5 @@
 "use client";
-import {React,useState, useEffect}  from "react";
+import {React,useState, useCallback, useEffect}  from "react";
 import useUser from '../../components/use-user'
 
 function MainComponent() {
@@ -48,9 +48,9 @@ function MainComponent() {
   const fetchQuotes = async () => {
     try {
       const response = await fetch("/api/quotes-handler", {
-        method: "POST",
+        method: "GET",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: "GET" }),
+        // body: JSON.stringify({ method: "GET" }),
       });
 
       if (!response.ok) throw new Error("Failed to fetch quotes");
@@ -66,15 +66,15 @@ function MainComponent() {
     }
   };
 
-  const handleAddQuote = async (e) => {
-    e.preventDefault();
+  const handleAddQuote = async (data) => {
+    // e?.preventDefault();
     try {
       const response = await fetch("/api/quotes-handler", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method: "POST",
-          ...newQuote,
+          ...data,
         }),
       });
 
@@ -89,7 +89,7 @@ function MainComponent() {
         source: "",
         notes: "",
       });
-      //setIsAddingQuote(false);
+      setIsAddingQuote(false);
       setError(null);
     } catch (err) {
       console.error("Error adding quote:", err);
@@ -138,7 +138,7 @@ function MainComponent() {
 
       if (!response.ok) throw new Error("Failed to delete quote");
 
-      setQuotes(quotes.filter((q) => q.id !== quoteId));
+      setQuotes(quotes?.filter((q) => q.id !== quoteId));
       setError(null);
     } catch (err) {
       console.error("Error deleting quote:", err);
@@ -169,10 +169,10 @@ function MainComponent() {
     }
   };
 
-  const filteredQuotes = quotes.filter((quote) => {
+  const filteredQuotes = quotes?.filter((quote) => {
     const matchesSearch =
-      quote.quote_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      quote.author.toLowerCase().includes(searchTerm.toLowerCase());
+      quote?.quote_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      quote?.author?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
       !selectedCategory || quote.category === selectedCategory;
     const matchesFavorites = !showFavoritesOnly || quote.is_favorite;
@@ -192,8 +192,8 @@ function MainComponent() {
     );
 
     const handleSubmit = (e) => {
-      console.log('ssssssssssssssssssssss')
       e.preventDefault();
+      console.log('hhhhhhhhhhh')
       onSubmit(formData);
     };
 
@@ -498,7 +498,7 @@ function MainComponent() {
 
       {isAddingQuote && (
         <QuoteForm
-          onSubmit={handleAddQuote}
+          onSubmit={(data)=>handleAddQuote(data)}
           onCancel={() => setIsAddingQuote(false)}
         />
       )}

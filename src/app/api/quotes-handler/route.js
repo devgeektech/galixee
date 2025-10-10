@@ -1,15 +1,30 @@
-async function handler({ method, body }) {
-  const session = getSession();
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
+
+async function handler(request) {
+  const session = await getSession();
+  const method = request.method;
 
   if (!session?.user?.id) {
-    return { error: "Authentication required", status: 401 };
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    );
   }
 
-  const userId = session.user.id;
+  const userId = Number(
+    typeof session.user.id === "object"
+      ? Object.values(session.user.id)[0]
+      : session.user.id
+  );
+
 
   try {
     if (method === "GET") {
-      const { category, favorites } = body || {};
+      const { searchParams } = new URL(request.url);
+      const category = searchParams.get("category");
+      const favorites = searchParams.get("favorites");
 
       let query = "SELECT * FROM user_quotes WHERE user_id = $1";
       let params = [userId];
@@ -21,17 +36,18 @@ async function handler({ method, body }) {
         params.push(category);
       }
 
-      if (favorites === true || favorites === "true") {
+      if (favorites === "true") {
         query += " AND is_favorite = true";
       }
 
       query += " ORDER BY created_at DESC";
 
-      const quotes = await sql(query, params);
-      return { quotes };
+      const quotes = await sql(query, userId);
+      return NextResponse.json({ quotes });
     }
 
     if (method === "POST") {
+      const body = await request.json();
       const {
         quote_text,
         author,
@@ -40,22 +56,36 @@ async function handler({ method, body }) {
       } = body;
 
       if (!quote_text) {
-        return { error: "Quote text is required", status: 400 };
+        return NextResponse.json(
+          { error: "Quote text is required" },
+          { status: 400 }
+        );
       }
 
       const result = await sql(
         "INSERT INTO user_quotes (user_id, quote_text, author, category, is_favorite) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-        [userId, quote_text, author, category, is_favorite]
+        userId,
+        quote_text,
+        author,
+        category,
+        is_favorite
       );
 
-      return { quote: result[0], message: "Quote created successfully" };
+      return NextResponse.json({
+        quote: result[0],
+        message: "Quote created successfully",
+      });
     }
 
     if (method === "PUT") {
+      const body = await request.json();
       const { id, quote_text, author, category, is_favorite } = body;
 
       if (!id) {
-        return { error: "Quote ID is required", status: 400 };
+        return NextResponse.json(
+          { error: "Quote ID is required" },
+          { status: 400 }
+        );
       }
 
       const existing = await sql(
@@ -64,7 +94,10 @@ async function handler({ method, body }) {
       );
 
       if (existing.length === 0) {
-        return { error: "Quote not found", status: 404 };
+        return NextResponse.json(
+          { error: "Quote not found" },
+          { status: 404 }
+        );
       }
 
       let setClauses = [];
@@ -96,29 +129,36 @@ async function handler({ method, body }) {
       }
 
       if (setClauses.length === 0) {
-        return { error: "No fields to update", status: 400 };
+        return NextResponse.json(
+          { error: "No fields to update" },
+          { status: 400 }
+        );
       }
 
       paramCount++;
       setClauses.push(`updated_at = $${paramCount}`);
       values.push(new Date());
 
-      const query = `UPDATE user_quotes SET ${setClauses.join(
-        ", "
-      )} WHERE id = $${paramCount + 1} AND user_id = $${
-        paramCount + 2
-      } RETURNING *`;
+      const query = `UPDATE user_quotes SET ${setClauses.join(", ")} 
+        WHERE id = $${paramCount + 1} AND user_id = $${paramCount + 2} RETURNING *`;
       values.push(id, userId);
 
       const result = await sql(query, values);
-      return { quote: result[0], message: "Quote updated successfully" };
+      return NextResponse.json({
+        quote: result[0],
+        message: "Quote updated successfully",
+      });
     }
 
     if (method === "DELETE") {
+      const body = await request.json();
       const { id } = body;
 
       if (!id) {
-        return { error: "Quote ID is required", status: 400 };
+        return NextResponse.json(
+          { error: "Quote ID is required" },
+          { status: 400 }
+        );
       }
 
       const existing = await sql(
@@ -127,22 +167,46 @@ async function handler({ method, body }) {
       );
 
       if (existing.length === 0) {
-        return { error: "Quote not found", status: 404 };
+        return NextResponse.json(
+          { error: "Quote not found" },
+          { status: 404 }
+        );
       }
 
       await sql("DELETE FROM user_quotes WHERE id = $1 AND user_id = $2", [
         id,
         userId,
       ]);
-      return { message: "Quote deleted successfully" };
+
+      return NextResponse.json({ message: "Quote deleted successfully" });
     }
 
-    return { error: "Method not allowed", status: 405 };
+    // Unsupported Method
+    return NextResponse.json(
+      { error: "Method not allowed" },
+      { status: 405 }
+    );
   } catch (error) {
     console.error("Quotes handler error:", error);
-    return { error: "Internal server error", status: 500 };
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
+
+export async function GET(request) {
+  return handler(request);
+}
+
 export async function POST(request) {
-  return handler(await request.json());
+  return handler(request);
+}
+
+export async function PUT(request) {
+  return handler(request);
+}
+
+export async function DELETE(request) {
+  return handler(request);
 }

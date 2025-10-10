@@ -1,8 +1,7 @@
 "use client";
-import React from "react";
-
-import { useUpload } from "../utilities/runtime-helpers";
-
+import { React, useState, useEffect, useRef } from "react";
+import { useUpload } from "@/utilities/runtime-helpers";
+import useUser from "@/components/use-user";
 function MainComponent() {
   const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -25,12 +24,11 @@ function MainComponent() {
     const fetchAlbums = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/photos-handler", {
-          method: "POST",
+        const response = await fetch("/api/photos", {
+          method: "GET",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({}),
         });
 
         if (!response.ok) {
@@ -57,7 +55,7 @@ function MainComponent() {
   const fetchComments = async (photoId) => {
     try {
       setLoadingComments(true);
-      const response = await fetch("/api/photos-handler", {
+      const response = await fetch("/api/photos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -89,7 +87,7 @@ function MainComponent() {
   const handleCreateAlbum = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("/api/photos-handler", {
+      const response = await fetch("/api/photos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -129,7 +127,7 @@ function MainComponent() {
 
   const handleDeletePhoto = async (albumId, photoId) => {
     try {
-      const response = await fetch("/api/photos-handler", {
+      const response = await fetch("/api/photos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -176,7 +174,7 @@ function MainComponent() {
     }
 
     try {
-      const response = await fetch("/api/photos-handler", {
+      const response = await fetch("/api/photos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -251,7 +249,7 @@ function MainComponent() {
 
           // Save the photo in the database
           console.log("Attempting to save photo to database...");
-          const response = await fetch("/api/photos-handler", {
+          const response = await fetch("/api/photos", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -341,7 +339,7 @@ function MainComponent() {
     if (!newComment.trim()) return;
 
     try {
-      const response = await fetch("/api/photos-handler", {
+      const response = await fetch("/api/photos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -386,7 +384,7 @@ function MainComponent() {
 
   const handleCommentStatus = async (commentId, status) => {
     try {
-      const response = await fetch("/api/photos-handler", {
+      const response = await fetch("/api/photos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

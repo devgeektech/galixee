@@ -1,5 +1,5 @@
 "use client";
-import {React,useState, useCallback, useEffect}  from "react";
+import { React, useState, useEffect, useRef } from "react";
 import useUser from '../../components/use-user'
 
 function MainComponent() {
@@ -36,12 +36,17 @@ function MainComponent() {
     "Other",
   ];
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
     if (!userLoading && !user) {
       const currentPath = encodeURIComponent(window.location.pathname);
       window.location.href = `/account/signin?callbackUrl=${currentPath}`;
       return;
     }
+    if (userLoading || !user) return;
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     fetchQuotes();
   }, [user, userLoading]);
 
@@ -198,8 +203,14 @@ function MainComponent() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+        onClick={onCancel}
+      >
+        <div
+          className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           <h3 className="text-xl font-bold mb-4 text-white">
             {quote ? "Edit Quote" : "Add New Quote"}
           </h3>

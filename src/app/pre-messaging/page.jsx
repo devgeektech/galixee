@@ -1,8 +1,7 @@
 "use client";
-import React from "react";
-
-import { useUpload } from "../utilities/runtime-helpers";
-
+import { React, useState, useEffect} from "react";
+import { useUpload } from "@/utilities/runtime-helpers";
+import useUser from "@/components/use-user";
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
   const [messages, setMessages] = useState([]);
@@ -20,7 +19,7 @@ function MainComponent() {
     }, 3000);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!userLoading && !user) {
       const currentPath = encodeURIComponent(window.location.pathname);
       window.location.href = `/account/signin?callbackUrl=${currentPath}`;
@@ -70,7 +69,7 @@ function MainComponent() {
     }
   };
 
-  React.useEffect(() => {
+useEffect(() => {
     if (!userLoading && user) {
       fetchMessages();
     }

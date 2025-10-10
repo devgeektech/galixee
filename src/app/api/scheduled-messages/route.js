@@ -1,3 +1,6 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
+import { NextResponse } from "next/server";
 async function handler({
   method,
   id,
@@ -12,9 +15,9 @@ async function handler({
   media_url,
   timezone,
 }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Authentication required" };
+   return NextResponse.json({ error: "Authentication required" });
   }
 
   const userId = session.user.id;
@@ -27,7 +30,7 @@ async function handler({
           WHERE user_id = ${userId}
           ORDER BY scheduled_date DESC
         `;
-        return { data: messages };
+        return NextResponse.json({ data: messages });
       }
 
       case "POST": {
@@ -39,7 +42,7 @@ async function handler({
           (delivery_method === "email" && !recipient_email) ||
           (delivery_method === "sms" && !recipient_phone)
         ) {
-          return { error: "Missing required fields" };
+          return NextResponse.json({error: "Missing required fields" });
         }
 
         // Store the date as is - it will be displayed in the selected timezone on the frontend
@@ -55,12 +58,12 @@ async function handler({
           )
           RETURNING *
         `;
-        return { data: message[0] };
+         return NextResponse.json({ data: message[0] });
       }
 
       case "PUT": {
         if (!id) {
-          return { error: "Message ID required" };
+          return NextResponse.json({ error: "Message ID required" });
         }
 
         const existingMessage = await sql`
@@ -69,18 +72,18 @@ async function handler({
         `;
 
         if (!existingMessage.length) {
-          return { error: "Message not found or unauthorized" };
+          return NextResponse.json({error: "Message not found or unauthorized" });
         }
 
         const delivery_method_value =
           message_type === "email" ? "email" : "sms";
 
         if (delivery_method_value === "email" && !recipient_email) {
-          return { error: "Email address required for email messages" };
+          return NextResponse.json({error: "Email address required for email messages" });
         }
 
         if (delivery_method_value === "sms" && !recipient_phone) {
-          return { error: "Phone number required for SMS messages" };
+          return NextResponse.json({error: "Phone number required for SMS messages" });
         }
 
         const message = await sql`
@@ -100,12 +103,12 @@ async function handler({
           RETURNING *
         `;
 
-        return { data: message[0] };
+      return NextResponse.json({data: message[0] });
       }
 
       case "DELETE": {
         if (!id) {
-          return { error: "Message ID required" };
+          return NextResponse.json({ error: "Message ID required" });
         }
 
         const existingMessage = await sql`
@@ -114,22 +117,22 @@ async function handler({
         `;
 
         if (!existingMessage.length) {
-          return { error: "Message not found or unauthorized" };
+          return NextResponse.json({error: "Message not found or unauthorized" });
         }
 
         await sql`
           DELETE FROM scheduled_messages 
           WHERE id = ${id} AND user_id = ${userId}
         `;
-        return { success: true };
+        return NextResponse.json({ success: true });
       }
 
       default:
-        return { error: "Method not allowed" };
+        return NextResponse.json({ error: "Method not allowed" });
     }
   } catch (error) {
     console.error("Scheduled messages handler error:", error);
-    return { error: "An error occurred processing your request" };
+    return NextResponse.json({error: "An error occurred processing your request" });
   }
 }
 export async function POST(request) {

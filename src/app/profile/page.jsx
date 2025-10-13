@@ -1,10 +1,12 @@
 "use client";
-import React from "react";
-
-import { useUpload } from "../utilities/runtime-helpers";
-
+import React, { useState, useEffect, useRef } from "react";
+import useUser from "@/components/use-user";
+import { useUpload } from "@/utilities/runtime-helpers";
 function MainComponent() {
-  const { data: user, loading: userLoading } = useUser();
+  const { data: user, loading: userLoading } = useUser({
+    revalidateOnFocus: false,
+    revalidateOnStorage: false,
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -48,8 +50,8 @@ function MainComponent() {
       id: 4,
       title: "Health & Wellbeing",
       description: "Track your wellness journey",
-      imageUrl: "/api/placeholder/728/90",
-      mobileImageUrl: "/api/placeholder/320/50",
+      imageUrl: "/images/placeholders/user1.jpg",
+      mobileImageUrl: "/images/placeholders/user1.jpg",
       clickUrl: "/health-and-wellbeing",
       backgroundColor: "#10B981",
     },
@@ -57,8 +59,8 @@ function MainComponent() {
       id: 5,
       title: "Education History",
       description: "Document your learning achievements",
-      imageUrl: "/api/placeholder/728/90",
-      mobileImageUrl: "/api/placeholder/320/50",
+      imageUrl: "/images/placeholders/user2.jpg",
+      mobileImageUrl: "/images/placeholders/user2.jpg",
       clickUrl: "/education-history",
       backgroundColor: "#8B5CF6",
     },
@@ -66,8 +68,8 @@ function MainComponent() {
       id: 6,
       title: "Employment History",
       description: "Build your professional legacy",
-      imageUrl: "/api/placeholder/728/90",
-      mobileImageUrl: "/api/placeholder/320/50",
+      imageUrl: "/images/placeholders/user3.jpg",
+      mobileImageUrl: "/images/placeholders/user3.jpg",
       clickUrl: "/employment-history",
       backgroundColor: "#F59E0B",
     },
@@ -472,7 +474,8 @@ function MainComponent() {
                 {isEditing ? "Cancel" : "Edit Profile"}
               </button>
               <button
-                onClick={handleSubmit}
+                type="submit"
+                form="profile-form"
                 disabled={saving}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   saving
@@ -492,7 +495,7 @@ function MainComponent() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="profile-form" onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-900/20 border border-red-500/50 p-3 rounded-lg text-red-400">
                 {error}

@@ -92,7 +92,12 @@ import React from "react";
 //   };
 // }
 
-export default function useUser(){
+export default function useUser(options = {}){
+  const {
+    revalidateOnFocus = true,
+    revalidateOnStorage = true,
+    revalidateOnMount = true,
+  } = options;
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -148,18 +153,26 @@ export default function useUser(){
   }, [fetchUser, loading]);
 
   React.useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    if (revalidateOnMount) {
+      fetchUser();
+    } else {
+      // If we skip initial fetch, mark initialized false until first manual refetch
+      setIsInitialized(true);
+      setLoading(false);
+    }
+  }, [fetchUser, revalidateOnMount]);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       const handleStorageChange = (e) => {
+        if (!revalidateOnStorage) return;
         if (e.key === 'galixee_session' || e.key === null) {
           refetch();
         }
       };
 
       const handleFocus = () => {
+        if (!revalidateOnFocus) return;
         if (!isInitialized) return;
         // Only refetch if the tab is visible
         if (document.visibilityState !== 'visible') return;
@@ -171,15 +184,23 @@ export default function useUser(){
         refetch();
       };
 
-      window.addEventListener('storage', handleStorageChange);
-      window.addEventListener('focus', handleFocus);
+      if (revalidateOnStorage) {
+        window.addEventListener('storage', handleStorageChange);
+      }
+      if (revalidateOnFocus) {
+        window.addEventListener('focus', handleFocus);
+      }
 
       return () => {
-        window.removeEventListener('storage', handleStorageChange);
-        window.removeEventListener('focus', handleFocus);
+        if (revalidateOnStorage) {
+          window.removeEventListener('storage', handleStorageChange);
+        }
+        if (revalidateOnFocus) {
+          window.removeEventListener('focus', handleFocus);
+        }
       };
     }
-  }, [refetch, isInitialized]);
+  }, [refetch, isInitialized, loading, revalidateOnFocus, revalidateOnStorage]);
 
   return {
     data,

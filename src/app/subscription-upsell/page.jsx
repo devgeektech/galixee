@@ -1,6 +1,7 @@
 "use client";
-import React from "react";
-
+import React, { useState, useEffect, useRef } from "react";
+import useUser from "@/components/use-user";
+import useIsSubscribed from '@/components/use-is-subscribed'
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
   const { isSubscribed, loading: subscriptionLoading } = useIsSubscribed();
@@ -57,13 +58,7 @@ function MainComponent() {
     setSuccess(null);
 
     try {
-      console.log("Starting checkout process...");
-      console.log("User:", user);
-      console.log("Redirect URL:", redirectURL);
-
       const requestBody = { redirectURL: redirectURL || "/welcome" };
-      console.log("Request body:", requestBody);
-
       const response = await fetch("/api/stripe-checkout-link", {
         method: "POST",
         headers: {

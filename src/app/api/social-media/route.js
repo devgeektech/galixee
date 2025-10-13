@@ -1,7 +1,11 @@
+import sql from "@/db";
+import getSession from "@/utilities/getSession";
+import { NextResponse } from "next/server";
+
 async function handler({ method, platform, url, username }, request) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized", status: 401 };
+    return NextResponse.json({  error: "Unauthorized", status: 401 });
   }
 
   const userId = session.user.id;
@@ -14,7 +18,7 @@ async function handler({ method, platform, url, username }, request) {
           WHERE user_id = ${userId}
           ORDER BY platform ASC
         `;
-        return { links };
+         return NextResponse.json({  links });
       }
 
       case "POST": {
@@ -32,12 +36,12 @@ async function handler({ method, platform, url, username }, request) {
             updated_at = CURRENT_TIMESTAMP
           RETURNING *
         `;
-        return { link: result[0] };
+         return NextResponse.json({ link: result[0] });
       }
 
       case "DELETE": {
         if (!platform) {
-          return { error: "Platform is required", status: 400 };
+           return NextResponse.json({ error: "Platform is required", status: 400 });
         }
 
         await sql`
@@ -45,15 +49,15 @@ async function handler({ method, platform, url, username }, request) {
           WHERE user_id = ${userId} 
           AND platform = ${platform}
         `;
-        return { success: true };
+         return NextResponse.json({  success: true });
       }
 
       default:
-        return { error: "Method not allowed", status: 405 };
+         return NextResponse.json({  error: "Method not allowed", status: 405 });
     }
   } catch (error) {
     console.error("Social media handler error:", error);
-    return { error: "Internal server error", status: 500 };
+     return NextResponse.json({  error: "Internal server error", status: 500 });
   }
 }
 export async function POST(request) {

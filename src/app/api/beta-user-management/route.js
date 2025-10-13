@@ -1,5 +1,5 @@
 import sql from "@/db";
-import { getSession } from "@/utilities/getSession"; // use named import
+import { getSession } from "@/utilities/getSession";
 import { NextResponse } from "next/server";
 
 async function handler(params) {
@@ -159,26 +159,27 @@ async function handler(params) {
       }
 
       case "get_beta_statistics": {
-        const [totalUsers, activeUsers, groupStats, recentActivity, feedbackStats] =
-          await sql.transaction([
-            sql`SELECT COUNT(*) as count FROM beta_users`,
-            sql`SELECT COUNT(*) as count FROM beta_users WHERE is_active = true`,
-            sql`
-              SELECT 
-                beta_group,
-                COUNT(*) as count,
-                COUNT(CASE WHEN is_active THEN 1 END) as active_count
-              FROM beta_users GROUP BY beta_group
-            `,
-            sql`SELECT COUNT(*) as count FROM beta_activity_logs WHERE created_at >= NOW() - INTERVAL '7 days'`,
-            sql`
-              SELECT 
-                COUNT(*) as total_feedback,
-                COUNT(CASE WHEN status = 'open' THEN 1 END) as open_feedback,
-                COUNT(CASE WHEN feedback_type = 'bug' THEN 1 END) as bug_reports
-              FROM beta_feedback
-            `,
-          ]);
+        const totalUsers = await sql`SELECT COUNT(*) as count FROM beta_users`;
+        const activeUsers = await sql`SELECT COUNT(*) as count FROM beta_users WHERE is_active = true`;
+        const groupStats = await sql`
+          SELECT 
+            beta_group,
+            COUNT(*) as count,
+            COUNT(CASE WHEN is_active THEN 1 END) as active_count
+          FROM beta_users GROUP BY beta_group
+        `;
+        const recentActivity = await sql`
+          SELECT COUNT(*) as count 
+          FROM beta_activity_logs 
+          WHERE created_at >= NOW() - INTERVAL '7 days'
+        `;
+        const feedbackStats = await sql`
+          SELECT 
+            COUNT(*) as total_feedback,
+            COUNT(CASE WHEN status = 'open' THEN 1 END) as open_feedback,
+            COUNT(CASE WHEN feedback_type = 'bug' THEN 1 END) as bug_reports
+          FROM beta_feedback
+        `;
 
         return NextResponse.json({
           success: true,
@@ -192,7 +193,6 @@ async function handler(params) {
         });
       }
 
-      // ✅ LOG ACTIVITY
       case "log_activity": {
         if (!activityAction) {
           return NextResponse.json({ error: "Activity action required" }, { status: 400 });
@@ -216,7 +216,6 @@ async function handler(params) {
         return NextResponse.json({ success: true, message: "Activity logged" });
       }
 
-      // ✅ GET USER ACTIVITY
       case "get_user_activity": {
         if (!userId) {
           return NextResponse.json({ error: "User ID required" }, { status: 400 });
@@ -246,7 +245,6 @@ async function handler(params) {
         });
       }
 
-      // ✅ INVALID ACTION
       default:
         return NextResponse.json({ error: `Invalid action: ${action}` }, { status: 400 });
     }

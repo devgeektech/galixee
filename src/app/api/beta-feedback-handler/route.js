@@ -1,27 +1,25 @@
+import sql from "@/db";
+import { getSession } from "@/utilities/getSession";
+import { NextResponse } from "next/server";
+
 async function handler(params) {
-  console.log("=== BETA FEEDBACK HANDLER START ===");
-  console.log("Params received:", JSON.stringify(params, null, 2));
+const session = await getSession();
+const userId = session.user.id;
 
   if (!params) {
-    console.log("❌ No params provided");
-    return {
+    return NextResponse.json({
       error: "Request body is required",
       debug: {
         message: "Request body is required",
         params: params,
       },
-    };
+    });
   }
 
   // Extract action from params
   const { action, ...data } = params;
-
-  console.log("Action extracted:", action);
-  console.log("Data extracted:", JSON.stringify(data, null, 2));
-
   if (!action) {
-    console.log("❌ No action provided in request body");
-    return {
+   return NextResponse.json({
       error: "No action provided",
       debug: {
         params,
@@ -29,27 +27,18 @@ async function handler(params) {
         data,
         params_keys: Object.keys(params || {}),
       },
-    };
+    });
   }
 
-  const session = getSession();
-  console.log("Session check:", {
-    hasSession: !!session,
-    hasUser: !!session?.user,
-    userId: session?.user?.id,
-  });
+
 
   if (!session?.user?.id) {
-    console.log("❌ No session or user ID found");
-    return { error: "Authentication required" };
+    return NextResponse.json({error: "Authentication required" });
   }
 
-  const userId = session.user.id;
-  console.log("✅ Authenticated user ID:", userId);
 
   try {
     if (action === "submit") {
-      console.log("📝 Processing submit action");
       const {
         feedback_type,
         title,
@@ -61,7 +50,8 @@ async function handler(params) {
       } = data;
 
       if (!feedback_type || !title || !description) {
-        return { error: "Missing required fields" };
+        return NextResponse.json({ error: "Missing required fields" });
+      
       }
 
       const feedback = await sql`
@@ -84,13 +74,11 @@ async function handler(params) {
       })})
       `;
 
-      return { success: true, feedback: feedback[0] };
+      return NextResponse.json({success: true, feedback: feedback[0] });
     }
 
     if (action === "update_status") {
-      console.log("🔄 Processing update_status action");
       const { feedback_id, status, admin_notes } = data;
-
       const updated = await sql`
         UPDATE beta_feedback 
         SET status = ${status}, admin_notes = ${admin_notes}, updated_at = CURRENT_TIMESTAMP
@@ -98,11 +86,10 @@ async function handler(params) {
         RETURNING *
       `;
 
-      return { success: true, feedback: updated[0] };
+      return NextResponse.json({ success: true, feedback: updated[0] });
     }
 
     if (action === "log_activity") {
-      console.log("📊 Processing log_activity action");
       const {
         action_type,
         page_url,
@@ -123,12 +110,10 @@ async function handler(params) {
         )
       `;
 
-      return { success: true };
+      return NextResponse.json({ success: true });
     }
 
     if (action === "get_admin_feedback") {
-      console.log("🔍 Processing get_admin_feedback action");
-
       try {
         const feedback = await sql`
           SELECT bf.*, au.name as user_name, au.email as user_email
@@ -137,34 +122,26 @@ async function handler(params) {
           ORDER BY bf.created_at DESC
         `;
 
-        console.log(
-          "✅ Feedback query successful, found:",
-          feedback.length,
-          "items"
-        );
-        return { success: true, feedback };
+         return NextResponse.json({ success: true, feedback });
       } catch (feedbackError) {
-        console.error("❌ Error fetching feedback:", feedbackError);
-        return {
+         return NextResponse.json({
           error: "Failed to fetch feedback",
           details: feedbackError.message,
-        };
+        });
       }
     }
 
     if (action === "get_user_feedback") {
-      console.log("👤 Processing get_user_feedback action");
       const feedback = await sql`
         SELECT * FROM beta_feedback 
         WHERE user_id = ${userId}
         ORDER BY created_at DESC
       `;
 
-      return { feedback };
+      return NextResponse.json({ feedback });
     }
 
     if (action === "get_user_activity") {
-      console.log("📈 Processing get_user_activity action");
       const activity = await sql`
         SELECT * FROM beta_activity_logs
         WHERE user_id = ${userId}
@@ -172,11 +149,10 @@ async function handler(params) {
         LIMIT 50
       `;
 
-      return { activity };
+       return NextResponse.json({ activity });
     }
 
     if (action === "get_admin_activity") {
-      console.log("🔧 Processing get_admin_activity action");
       const activity = await sql`
         SELECT bal.*, au.name as user_name, au.email as user_email
         FROM beta_activity_logs bal
@@ -185,11 +161,10 @@ async function handler(params) {
         LIMIT 100
       `;
 
-      return { activity };
+      return NextResponse.json({ activity });
     }
 
     if (action === "get_stats") {
-      console.log("📊 Processing get_stats action");
       const [feedbackStats, activityStats, userStats] = await sql.transaction([
         sql`
           SELECT 
@@ -218,25 +193,21 @@ async function handler(params) {
         `,
       ]);
 
-      return {
+       return NextResponse.json({
         feedback_stats: feedbackStats,
         activity_stats: activityStats,
         user_stats: userStats[0],
-      };
+      });
     }
 
-    console.log("❌ Invalid action received:", action);
-    console.log(
-      "Available actions: submit, update_status, log_activity, get_admin_feedback, get_user_feedback, get_user_activity, get_admin_activity, get_stats"
-    );
-    return {
+
+     return NextResponse.json({
       error: "Invalid action",
       received_action: action,
       debug: { params, action, data },
-    };
+    });
   } catch (error) {
-    console.error("❌ Beta feedback handler error:", error);
-    return { error: "Internal server error", details: error.message };
+     return NextResponse.json({ error: "Internal server error", details: error.message });
   }
 }
 export async function POST(request) {

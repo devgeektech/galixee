@@ -85,9 +85,6 @@ function MainComponent() {
       }
 
       const usersData = await usersResponse.json();
-      console.log("Users data:", usersData);
-
-      console.log("Fetching beta statistics...");
       const statsResponse = await fetchWithTimeout(
         "/api/beta-user-management",
         {

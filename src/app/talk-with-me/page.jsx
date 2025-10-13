@@ -1,10 +1,10 @@
 "use client";
-import React from "react";
-
+import React, { useState, useEffect, useRef } from "react";
+import useUser from "@/components/use-user";
 import {
   useUpload,
   useHandleStreamResponse,
-} from "../utilities/runtime-helpers";
+} from "@/utilities/runtime-helpers";
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
@@ -67,7 +67,7 @@ function MainComponent() {
         setError(null);
       } catch (err) {
         console.error("Error fetching profile:", err);
-        setError("Unable to load profile data");
+        //setError("Unable to load profile data");
       } finally {
         setProfileLoading(false);
       }
@@ -397,14 +397,14 @@ Bad response: "This information is not present in the database."
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold">
                     {profileLoading ? (
-                      <div className="h-6 w-32 bg-[#242424] rounded animate-pulse"></div>
+                      <span className="inline-block h-6 w-32 bg-[#242424] rounded animate-pulse"></span>
                     ) : (
                       userProfile?.first_name || user?.name || "Guest"
                     )}
                   </h3>
                   <p className="text-gray-400">
                     {profileLoading ? (
-                      <div className="h-4 w-48 bg-[#242424] rounded animate-pulse"></div>
+                      <span className="inline-block h-4 w-48 bg-[#242424] rounded animate-pulse"></span>
                     ) : (
                       user?.email
                     )}

@@ -1,3 +1,6 @@
+import sql from "@/db";
+import getSession from "@/utilities/getSession";
+import { NextResponse } from "next/server";
 async function handler({
   method,
   voiceSampleUrl,
@@ -5,20 +8,20 @@ async function handler({
   userId,
   sampleName,
 }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+     return NextResponse.json({error: "Unauthorized" });
   }
 
   const authenticatedUserId = session.user.id;
   if (userId && userId !== authenticatedUserId) {
-    return { error: "Unauthorized" };
+   return NextResponse.json({error: "Unauthorized" });
   }
 
   switch (method) {
     case "POST": {
       if (!voiceSampleUrl) {
-        return { error: "Voice sample URL is required" };
+        return NextResponse.json({error: "Voice sample URL is required" });
       }
 
       // Create a new voice sample (allow multiple per user)
@@ -30,7 +33,7 @@ async function handler({
         RETURNING *
       `;
 
-      return { profile: result[0] };
+      return NextResponse.json({ profile: result[0] });
     }
 
     case "GET": {
@@ -41,7 +44,7 @@ async function handler({
         ORDER BY created_at DESC
       `;
 
-      return { profiles: result };
+       return NextResponse.json({ profiles: result });
     }
 
     case "GET_LATEST": {
@@ -53,12 +56,12 @@ async function handler({
         LIMIT 1
       `;
 
-      return { profile: result[0] || null };
+       return NextResponse.json({profile: result[0] || null });
     }
 
     case "PUT": {
       if (!voiceSettings) {
-        return { error: "Voice settings are required" };
+        return NextResponse.json({error: "Voice settings are required" });
       }
 
       const result = await sql`
@@ -69,7 +72,7 @@ async function handler({
         RETURNING *
       `;
 
-      return { profile: result[0] };
+      return NextResponse.json({ profile: result[0] });
     }
 
     case "DELETE": {
@@ -89,11 +92,11 @@ async function handler({
         `;
       }
 
-      return { success: true };
+     return NextResponse.json({ success: true });
     }
 
     default:
-      return { error: "Method not allowed" };
+      return NextResponse.json({error: "Method not allowed" });
   }
 }
 export async function POST(request) {

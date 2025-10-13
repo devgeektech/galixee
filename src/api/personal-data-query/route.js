@@ -1,7 +1,11 @@
+import sql from "@/db";
+import getSession from "@/utilities/getSession";
+import { NextResponse } from "next/server";
+
 async function handler({ question, userId }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session?.user?.id) {
-    return { error: "Not authenticated" };
+    return NextResponse.json({ error: "Not authenticated" });
   }
 
   const targetUserId = userId || session.user.id;
@@ -64,16 +68,16 @@ async function handler({ question, userId }) {
       socialData,
     ] = await sql.transaction(queries);
 
-    return {
+    return NextResponse.json({
       profile: profileData[0] || null,
       health: healthData[0] || null,
       education: educationData || [],
       employment: employmentData || [],
       family: familyData || [],
       social: socialData || [],
-    };
+    });
   } catch (error) {
-    return { error: "Failed to fetch personal data" };
+    return NextResponse.json({ error: "Failed to fetch personal data" });
   }
 }
 export async function POST(request) {

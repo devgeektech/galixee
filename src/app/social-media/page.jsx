@@ -3,7 +3,10 @@ import React, { useState, useEffect, useRef } from "react";
 import useUser from "@/components/use-user";
 
 function MainComponent() {
-  const { data: user, loading: userLoading } = useUser();
+  const { data: user, loading: userLoading, isInitialized } = useUser({
+    revalidateOnFocus: false,
+    revalidateOnStorage: false,
+  });
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,13 +30,20 @@ function MainComponent() {
   ];
 
   useEffect(() => {
-    if (!userLoading && !user) {
+    // Wait until session check initialized
+    if (!isInitialized) return;
+    // Do nothing while user state is loading
+    if (userLoading) return;
+    // Redirect if no user
+    if (!user) {
       const currentPath = encodeURIComponent(window.location.pathname);
       window.location.href = `/account/signin?callbackUrl=${currentPath}`;
       return;
     }
+    // Fetch links only when we have a stable user
     fetchLinks();
-  }, [user, userLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, userLoading, user?.id]);
 
   const fetchLinks = async () => {
     try {

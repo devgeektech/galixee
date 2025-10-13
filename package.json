@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:init": "node scripts/db-init.js"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "@vercel/postgres": "^0.10.0",
     "mysql2": "^3.15.1",
     "next": "14.0.4",

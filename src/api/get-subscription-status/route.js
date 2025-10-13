@@ -1,6 +1,8 @@
+import { NextResponse } from "next/server";
+import getSession from "@/utilities/getSession";
 async function handler({ action, session_id }) {
   try {
-    const session = getSession();
+    const session =  await getSession();
 
     // Enhanced debugging with the session structure we now know works
     const debugInfo = {
@@ -14,38 +16,28 @@ async function handler({ action, session_id }) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log("=== SUBSCRIPTION STATUS DEBUG ===");
-    console.log("Session debug info:", JSON.stringify(debugInfo, null, 2));
 
     // Check if we have a session with user data
     if (!session || !session.user) {
-      console.log("❌ No session or user found");
-      return {
+      console.log("No session or user found");
+      return NextResponse.json({
         status: "none",
         message: "User not logged in",
         debug: debugInfo,
-      };
+      });
     }
 
     // Check if we have user identification (ID or email)
     if (!session.user.id && !session.user.email) {
       console.log("❌ No user ID or email in session");
-      return {
+      return NextResponse.json({
         status: "none",
         message: "User session incomplete",
         debug: debugInfo,
-      };
+      });
     }
 
-    // SUCCESS: We have a valid session with user data
-    console.log(
-      "✅ Valid session found for user:",
-      session.user.email || `ID: ${session.user.id}`
-    );
-
-    // BYPASS MODE: Return active subscription for all authenticated users
-    console.log("🔄 BYPASS MODE: Returning active subscription");
-    return {
+    return NextResponse.json({
       status: "active",
       message: "Subscription active (bypass mode)",
       user: {
@@ -55,12 +47,11 @@ async function handler({ action, session_id }) {
       },
       bypass: true,
       debug: debugInfo,
-    };
+    });
   } catch (error) {
-    console.error("❌ Error in subscription check:", error);
 
     // Even on error, try to return something useful
-    return {
+     return NextResponse.json({
       status: "active", // Bypass mode - always active
       message: "Subscription active (bypass mode - error fallback)",
       bypass: true,
@@ -70,7 +61,7 @@ async function handler({ action, session_id }) {
         errorMessage: error.message,
         timestamp: new Date().toISOString(),
       },
-    };
+    });
   }
 }
 

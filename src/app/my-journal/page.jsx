@@ -1,8 +1,7 @@
 "use client";
-import React from "react";
-
-import { useUpload } from "../utilities/runtime-helpers";
-
+import React, { useState, useEffect } from "react";
+import useUser from "@/components/use-user";
+import { useUpload } from "@/utilities/runtime-helpers";
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();
 

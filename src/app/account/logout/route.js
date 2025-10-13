@@ -7,12 +7,12 @@ async function doLogout() {
     const session = await getSession();
     if (session?.user?.id) {
       await sql`DELETE FROM auth_sessions WHERE "userId" = ${session.user.id}`;
-      return { success: true };
+      return NextResponse.json({ success: true });
     }
-    return { success: false, error: "No active session" };
+    return NextResponse.json({success: false, error: "No active session" });
   } catch (e) {
     console.error("API logout error:", e);
-    return { success: false, error: "Internal error" };
+    return NextResponse.json({success: false, error: "Internal error" });
   }
 }
 

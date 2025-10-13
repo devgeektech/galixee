@@ -1,3 +1,7 @@
+import getSession from "@/utilities/getSession";
+import { NextResponse } from "next/server";
+import sql from "@/db";
+
 async function handler({
   method,
   id,
@@ -12,10 +16,10 @@ async function handler({
   request_status,
   entry_id,
 }) {
-  const session = getSession();
+  const session = await getSession();
 
   if (!session?.user?.id) {
-    return { error: "Unauthorized", status: 401 };
+    return NextResponse.json({error: "Unauthorized", status: 401 });
   }
 
   // Helper function to generate video thumbnail
@@ -126,12 +130,12 @@ async function handler({
           ORDER BY e.created_at DESC
         `;
 
-        return { data: entries };
+         return NextResponse.json({data: entries });
       }
 
       case "POST": {
         if (!title || !content || !visibility) {
-          return { error: "Missing required fields", status: 400 };
+          return NextResponse.json({error: "Missing required fields", status: 400 });
         }
 
         // First insert the journal entry
@@ -142,8 +146,7 @@ async function handler({
         `;
 
         if (!newEntry?.id) {
-          console.error("Failed to create journal entry:", newEntry);
-          return { error: "Failed to create journal entry", status: 500 };
+          return NextResponse.json({ error: "Failed to create journal entry", status: 500 });
         }
 
         // If there's media, insert it
@@ -231,15 +234,15 @@ async function handler({
 
         if (!completeEntry) {
           console.error("Failed to fetch complete entry:", newEntry.id);
-          return { error: "Failed to fetch complete entry", status: 500 };
+          return NextResponse.json({error: "Failed to fetch complete entry", status: 500 });
         }
 
-        return { data: completeEntry };
+        return NextResponse.json({ data: completeEntry });
       }
 
       case "PUT": {
         if (!id) {
-          return { error: "Missing entry ID", status: 400 };
+          return NextResponse.json({ error: "Missing entry ID", status: 400 });
         }
 
         // Check if entry exists and belongs to user
@@ -249,7 +252,7 @@ async function handler({
         `;
 
         if (!existingEntry) {
-          return { error: "Entry not found", status: 404 };
+          return NextResponse.json({error: "Entry not found", status: 404 });
         }
 
         // Update the journal entry
@@ -330,16 +333,15 @@ async function handler({
         `;
 
         if (!updatedEntry) {
-          console.error("Failed to fetch updated entry:", id);
-          return { error: "Failed to fetch updated entry", status: 500 };
+          return NextResponse.json({error: "Failed to fetch updated entry", status: 500 });
         }
 
-        return { data: updatedEntry };
+        return NextResponse.json({ data: updatedEntry });
       }
 
       case "DELETE": {
         if (!id) {
-          return { error: "Missing entry ID", status: 400 };
+          return NextResponse.json({ error: "Missing entry ID", status: 400 });
         }
 
         await sql`
@@ -347,12 +349,12 @@ async function handler({
           WHERE id = ${id} AND user_id = ${session.user.id}
         `;
 
-        return { data: { message: "Entry deleted successfully" } };
+        return NextResponse.json({  data: { message: "Entry deleted successfully" } });
       }
 
       case "COMMENT": {
         if (!id || !comment_content) {
-          return { error: "Missing required fields", status: 400 };
+          return NextResponse.json({error: "Missing required fields", status: 400 });
         }
 
         const [newComment] = await sql`
@@ -361,12 +363,12 @@ async function handler({
           RETURNING *
         `;
 
-        return { data: newComment };
+        return NextResponse.json({ data: newComment });
       }
 
       case "ADD_REQUEST": {
         if (!id || !request_content) {
-          return { error: "Missing required fields", status: 400 };
+         return NextResponse.json({ error: "Missing required fields", status: 400 });
         }
 
         // Check if entry exists and is public/semi-public
@@ -377,7 +379,7 @@ async function handler({
         `;
 
         if (!entry) {
-          return { error: "Entry not found or not public", status: 404 };
+          return NextResponse.json({ error: "Entry not found or not public", status: 404 });
         }
 
         // Check if user already has a pending request
@@ -389,7 +391,7 @@ async function handler({
         `;
 
         if (existingRequest) {
-          return { error: "You already have a pending request", status: 400 };
+          return NextResponse.json({ error: "You already have a pending request", status: 400 });
         }
 
         // Create the add request
@@ -401,12 +403,12 @@ async function handler({
           RETURNING *
         `;
 
-        return { data: newRequest };
+        return NextResponse.json({ data: newRequest });
       }
 
       case "GET_ADD_REQUESTS": {
         if (!id) {
-          return { error: "Missing entry ID", status: 400 };
+          return NextResponse.json({  error: "Missing entry ID", status: 400 });
         }
 
         // Check if user owns the entry
@@ -416,7 +418,7 @@ async function handler({
         `;
 
         if (!entry) {
-          return { error: "Entry not found", status: 404 };
+          return NextResponse.json({  error: "Entry not found", status: 404 });
         }
 
         // Get all requests with requester information
@@ -431,12 +433,12 @@ async function handler({
           ORDER BY jar.created_at DESC
         `;
 
-        return { data: requests };
+        return NextResponse.json({  data: requests });
       }
 
       case "UPDATE_ADD_REQUEST": {
         if (!request_id || !request_status) {
-          return { error: "Missing required fields", status: 400 };
+          return NextResponse.json({  error: "Missing required fields", status: 400 });
         }
 
         // First verify the request exists and get the journal entry owner
@@ -451,12 +453,12 @@ async function handler({
         `;
 
         if (!request) {
-          return { error: "Request not found", status: 404 };
+          return NextResponse.json({  error: "Request not found", status: 404 });
         }
 
         // Check if the current user owns the journal entry
         if (request.entry_owner_id !== session.user.id) {
-          return { error: "Unauthorized to update this request", status: 403 };
+         return NextResponse.json({  error: "Unauthorized to update this request", status: 403 });
         }
 
         // Update request status
@@ -566,21 +568,21 @@ async function handler({
           LEFT JOIN request_data r ON e.id = r.journal_id
         `;
 
-        return { data: updatedEntry };
+        return NextResponse.json({  data: updatedEntry });
       }
 
       default:
-        return { error: "Method not allowed", status: 405 };
+        return NextResponse.json({error: "Method not allowed", status: 405 });
     }
   } catch (error) {
     console.error("Journal handler error:", error);
     if (error.code === "429") {
-      return {
+      return NextResponse.json({
         error: "Too many requests. Please try again in a moment.",
         status: 429,
-      };
+      });
     }
-    return { error: error.message || "Internal server error", status: 500 };
+   return NextResponse.json({ error: error.message || "Internal server error", status: 500 });
   }
 }
 export async function POST(request) {

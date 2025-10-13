@@ -80,7 +80,7 @@ import React from "react";
 //         window.removeEventListener('focus', handleFocus);
 //       };
 //     }
-//   }, [refetch, isInitialized]);
+//   }, [refetch, isInitialized, loading]);
 
 //   return {
 //     data,
@@ -97,6 +97,8 @@ export default function useUser(){
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [isInitialized, setIsInitialized] = React.useState(false);
+  // Cooldown to prevent rapid focus-triggered refetches (e.g., after file picker)
+  const lastRefetchAtRef = React.useRef(0);
 
   const fetchUser = React.useCallback(async () => {
     try {
@@ -138,9 +140,12 @@ export default function useUser(){
   }, []);
 
   const refetch = React.useCallback(async () => {
+    // If a refetch is already in progress, skip
+    if (loading) return;
     setLoading(true);
+    lastRefetchAtRef.current = Date.now();
     await fetchUser();
-  }, [fetchUser]);
+  }, [fetchUser, loading]);
 
   React.useEffect(() => {
     fetchUser();
@@ -155,9 +160,15 @@ export default function useUser(){
       };
 
       const handleFocus = () => {
-        if (isInitialized) {
-          refetch();
-        }
+        if (!isInitialized) return;
+        // Only refetch if the tab is visible
+        if (document.visibilityState !== 'visible') return;
+        if (loading) return; // don't stack
+        const now = Date.now();
+        // Only allow a focus-triggered refetch if it's been > 3s since last refetch
+        if (now - lastRefetchAtRef.current < 3000) return;
+        lastRefetchAtRef.current = now;
+        refetch();
       };
 
       window.addEventListener('storage', handleStorageChange);

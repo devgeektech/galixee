@@ -1,9 +1,9 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import useUser from "@/components/use-user";
 import { useUpload } from "@/utilities/runtime-helpers";
 function MainComponent() {
-  const { data: user, loading: userLoading } = useUser();
+  const { data: user, loading: userLoading, isInitialized } = useUser();
 
   // Add debug logging
   useEffect(() => {
@@ -24,17 +24,29 @@ function MainComponent() {
   const [addRequests, setAddRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
 
+  // (moved) Will declare stable component refs after their definitions
+
   useEffect(() => {
-    if (!userLoading && !user) {
+    // Wait until the user session check has initialized
+    if (!isInitialized) return;
+
+    // Don't redirect while user state is loading during revalidation
+    if (userLoading) return;
+
+    // If no user after init and not loading, redirect to sign in
+    if (!user) {
       const currentPath = encodeURIComponent(window.location.pathname);
       window.location.href = `/account/signin?callbackUrl=${currentPath}`;
       return;
     }
 
+    // Only fetch when a valid user is present; depend on user.id so it does not
+    // retrigger because of loading flips or focus-based revalidations
     fetchEntries();
-  }, [user, userLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, userLoading, user?.id]);
 
-  const fetchEntries = async () => {
+  const fetchEntries = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -63,7 +75,7 @@ function MainComponent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Add retry logic for rate limited requests
   useEffect(() => {
@@ -451,9 +463,8 @@ function MainComponent() {
           </form>
         </div>
       </div>
-    );
+  );
   };
-
   const AddRequestForm = ({ onSubmit, onCancel, entry }) => {
     const [formData, setFormData] = useState({
       content: "",
@@ -554,6 +565,10 @@ function MainComponent() {
       </div>
     );
   };
+
+  // Stabilize inline component types to prevent remounts (which clear form state)
+  const JournalFormStable = React.useRef(JournalForm).current;
+  const AddRequestFormStable = React.useRef(AddRequestForm).current;
 
   const AddRequestsList = ({ entry, onClose }) => {
     useEffect(() => {
@@ -1561,7 +1576,7 @@ function MainComponent() {
         )}
 
         {(isAddingEntry || selectedEntry) && (
-          <JournalForm
+          <JournalFormStable
             onSubmit={handleSaveEntry}
             onCancel={() => {
               setIsAddingEntry(false);
@@ -1573,7 +1588,7 @@ function MainComponent() {
         )}
 
         {showAddRequest && selectedEntryForAdd && (
-          <AddRequestForm
+          <AddRequestFormStable
             entry={selectedEntryForAdd}
             onCancel={() => {
               setShowAddRequest(false);

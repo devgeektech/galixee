@@ -1,3 +1,4 @@
+// src/app/api/quotes/route.js
 import getSession from "@/utilities/getSession";
 import sql from "@/db";
 import { NextResponse } from "next/server";
@@ -19,30 +20,20 @@ async function handler(request) {
       : session.user.id
   );
 
-
   try {
     if (method === "GET") {
       const { searchParams } = new URL(request.url);
       const category = searchParams.get("category");
       const favorites = searchParams.get("favorites");
 
-      let query = "SELECT * FROM user_quotes WHERE user_id = $1";
-      let params = [userId];
-      let paramCount = 1;
+      const quotes = await sql`
+        SELECT * FROM user_quotes 
+        WHERE user_id = ${userId}
+        ${category ? sql`AND category = ${category}` : sql``}
+        ${favorites === "true" ? sql`AND is_favorite = true` : sql``}
+        ORDER BY created_at DESC
+      `;
 
-      if (category) {
-        paramCount++;
-        query += ` AND category = $${paramCount}`;
-        params.push(category);
-      }
-
-      if (favorites === "true") {
-        query += " AND is_favorite = true";
-      }
-
-      query += " ORDER BY created_at DESC";
-
-      const quotes = await sql(query, userId);
       return NextResponse.json({ quotes });
     }
 
@@ -62,17 +53,14 @@ async function handler(request) {
         );
       }
 
-      const result = await sql(
-        "INSERT INTO user_quotes (user_id, quote_text, author, category, is_favorite) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-        userId,
-        quote_text,
-        author,
-        category,
-        is_favorite
-      );
+      const [quote] = await sql`
+        INSERT INTO user_quotes (user_id, quote_text, author, category, is_favorite)
+        VALUES (${userId}, ${quote_text}, ${author}, ${category}, ${is_favorite})
+        RETURNING *
+      `;
 
       return NextResponse.json({
-        quote: result[0],
+        quote,
         message: "Quote created successfully",
       });
     }
@@ -88,10 +76,10 @@ async function handler(request) {
         );
       }
 
-      const existing = await sql(
-        "SELECT * FROM user_quotes WHERE id = $1 AND user_id = $2",
-        [id, userId]
-      );
+      const existing = await sql`
+        SELECT * FROM user_quotes 
+        WHERE id = ${id} AND user_id = ${userId}
+      `;
 
       if (existing.length === 0) {
         return NextResponse.json(
@@ -100,33 +88,11 @@ async function handler(request) {
         );
       }
 
-      let setClauses = [];
-      let values = [];
-      let paramCount = 0;
-
-      if (quote_text !== undefined) {
-        paramCount++;
-        setClauses.push(`quote_text = $${paramCount}`);
-        values.push(quote_text);
-      }
-
-      if (author !== undefined) {
-        paramCount++;
-        setClauses.push(`author = $${paramCount}`);
-        values.push(author);
-      }
-
-      if (category !== undefined) {
-        paramCount++;
-        setClauses.push(`category = $${paramCount}`);
-        values.push(category);
-      }
-
-      if (is_favorite !== undefined) {
-        paramCount++;
-        setClauses.push(`is_favorite = $${paramCount}`);
-        values.push(is_favorite);
-      }
+      const setClauses = [];
+      if (quote_text !== undefined) setClauses.push(sql`quote_text = ${quote_text}`);
+      if (author !== undefined) setClauses.push(sql`author = ${author}`);
+      if (category !== undefined) setClauses.push(sql`category = ${category}`);
+      if (is_favorite !== undefined) setClauses.push(sql`is_favorite = ${is_favorite}`);
 
       if (setClauses.length === 0) {
         return NextResponse.json(
@@ -135,17 +101,15 @@ async function handler(request) {
         );
       }
 
-      paramCount++;
-      setClauses.push(`updated_at = $${paramCount}`);
-      values.push(new Date());
+      const [updated] = await sql`
+        UPDATE user_quotes 
+        SET ${sql.join([...setClauses, sql`updated_at = ${new Date()}`], sql`, `)}
+        WHERE id = ${id} AND user_id = ${userId}
+        RETURNING *
+      `;
 
-      const query = `UPDATE user_quotes SET ${setClauses.join(", ")} 
-        WHERE id = $${paramCount + 1} AND user_id = $${paramCount + 2} RETURNING *`;
-      values.push(id, userId);
-
-      const result = await sql(query, values);
       return NextResponse.json({
-        quote: result[0],
+        quote: updated,
         message: "Quote updated successfully",
       });
     }
@@ -161,10 +125,10 @@ async function handler(request) {
         );
       }
 
-      const existing = await sql(
-        "SELECT * FROM user_quotes WHERE id = $1 AND user_id = $2",
-        [id, userId]
-      );
+      const existing = await sql`
+        SELECT * FROM user_quotes 
+        WHERE id = ${id} AND user_id = ${userId}
+      `;
 
       if (existing.length === 0) {
         return NextResponse.json(
@@ -173,10 +137,10 @@ async function handler(request) {
         );
       }
 
-      await sql("DELETE FROM user_quotes WHERE id = $1 AND user_id = $2", [
-        id,
-        userId,
-      ]);
+      await sql`
+        DELETE FROM user_quotes 
+        WHERE id = ${id} AND user_id = ${userId}
+      `;
 
       return NextResponse.json({ message: "Quote deleted successfully" });
     }

@@ -5,48 +5,55 @@ import { NextResponse } from "next/server";
 
 export async function handler(reqData) {
   const {
-    method, action, id: creationId,
-    title, description, creationType,
-    fileUrl, thumbnailUrl, isPublic,
-    collectionId, metadata = {},
-    sortBy, sortOrder, filters
+    method,
+    action,
+    id: creationId,
+    title,
+    description,
+    creationType,
+    fileUrl,
+    thumbnailUrl,
+    isPublic,
+    collectionId,
+    metadata = {},
+    sortBy,
+    sortOrder,
+    filters,
   } = reqData;
 
   const session = await getSession();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" });
 
   const methodUpper = method?.toUpperCase();
+
+  // CREATE CREATION OR COLLECTION
   if (methodUpper === "POST") {
     if (action === "create") {
       if (!fileUrl || !title || !creationType)
         return NextResponse.json({ error: "Missing required fields" });
 
-      const creationQuery = `
+      const [creation] = await sql`
         INSERT INTO user_creations (
           user_id, title, description, creation_type,
           file_url, thumbnail_url, is_public, metadata
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ) VALUES (
+          ${session.user.id},
+          ${title},
+          ${description},
+          ${creationType},
+          ${fileUrl},
+          ${thumbnailUrl || fileUrl},
+          ${isPublic || false},
+          ${JSON.stringify(metadata)}
+        )
         RETURNING *
       `;
-      const creationValues = [
-        session.user.id,
-        title,
-        description,
-        creationType,
-        fileUrl,
-        thumbnailUrl || fileUrl,
-        isPublic || false,
-        JSON.stringify(metadata)
-      ];
-
-      const [creation] = await sql(creationQuery, ...creationValues);
 
       if (collectionId) {
-        const collectionQuery = `
+        await sql`
           INSERT INTO creation_collection_items (collection_id, creation_id)
-          VALUES ($1, $2)
+          VALUES (${collectionId}, ${creation.id})
         `;
-        await sql(collectionQuery, collectionId, creation.id);
       }
 
       return NextResponse.json({ creation });
@@ -55,84 +62,75 @@ export async function handler(reqData) {
     if (action === "createCollection") {
       if (!title) return NextResponse.json({ error: "Collection name required" });
 
-      const collectionQuery = `
+      const [collection] = await sql`
         INSERT INTO creation_collections (user_id, name, description)
-        VALUES ($1, $2, $3)
+        VALUES (${session.user.id}, ${title}, ${description})
         RETURNING *
       `;
-      const collectionValues = [session.user.id, title, description];
 
-      const [collection] = await sql(collectionQuery, ...collectionValues);
       return NextResponse.json({ collection });
     }
   }
 
+  // UPDATE CREATION
   if (methodUpper === "PUT") {
     if (!creationId) return NextResponse.json({ error: "Creation ID required" });
 
     const updates = [];
-    const values = [];
-
-    if (title) { updates.push(`title = $${updates.length + 1}`); values.push(title); }
-    if (description !== undefined) { updates.push(`description = $${updates.length + 1}`); values.push(description); }
-    if (creationType) { updates.push(`creation_type = $${updates.length + 1}`); values.push(creationType); }
-    if (isPublic !== undefined) { updates.push(`is_public = $${updates.length + 1}`); values.push(isPublic); }
-    if (metadata) { updates.push(`metadata = $${updates.length + 1}`); values.push(JSON.stringify(metadata)); }
+    if (title !== undefined) updates.push(sql`title = ${title}`);
+    if (description !== undefined) updates.push(sql`description = ${description}`);
+    if (creationType !== undefined) updates.push(sql`creation_type = ${creationType}`);
+    if (isPublic !== undefined) updates.push(sql`is_public = ${isPublic}`);
+    if (metadata !== undefined) updates.push(sql`metadata = ${JSON.stringify(metadata)}`);
 
     if (updates.length === 0) return NextResponse.json({ error: "No updates provided" });
 
-    values.push(creationId, session.user.id); // for WHERE clause
-    const queryText = `
+    const setClause = sql.join([...updates, sql`updated_at = CURRENT_TIMESTAMP`], sql`, `);
+
+    const [updated] = await sql`
       UPDATE user_creations
-      SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $${values.length - 1} AND user_id = $${values.length}
+      SET ${setClause}
+      WHERE id = ${creationId} AND user_id = ${session.user.id}
       RETURNING *
     `;
 
-    const [updated] = await sql(queryText, ...values);
     return NextResponse.json({ creation: updated });
   }
 
+  // GET CREATIONS
   if (methodUpper === "GET") {
-  let queryText = "SELECT * FROM user_creations WHERE user_id = $1";
-  const queryParams = [session.user.id];
+    const validColumns = ["created_at", "title", "creation_type"];
+    const column = validColumns.includes(sortBy) ? sortBy : "created_at";
+    const order = sortOrder?.toUpperCase() === "DESC" ? "DESC" : "ASC";
 
-  if (filters?.type) {
-    queryParams.push(filters.type);
-    queryText += ` AND creation_type = $${queryParams.length}`;
+    // Use parameterized query to safely handle column and order
+    const creations = await sql`
+      SELECT *
+      FROM user_creations
+      WHERE user_id = ${session.user.id}
+      ${filters?.type ? sql`AND creation_type = ${filters.type}` : sql``}
+      ${filters?.isPublic !== undefined ? sql`AND is_public = ${filters.isPublic}` : sql``}
+      ORDER BY ${sql.unsafe(column)} ${sql.unsafe(order)}
+    `;
+
+    return NextResponse.json({ creations });
   }
 
-  if (filters?.isPublic !== undefined) {
-    queryParams.push(filters.isPublic);
-    queryText += ` AND is_public = $${queryParams.length}`;
-  }
-
-  const validColumns = ["created_at", "title", "creation_type"];
-  const column = validColumns.includes(sortBy) ? sortBy : "created_at";
-  const order = sortOrder?.toUpperCase() === "DESC" ? "DESC" : "ASC";
-
-  queryText += ` ORDER BY ${column} ${order}`;
-
-  const creations = await sql(queryText, ...queryParams);
-  return NextResponse.json({ creations });
-}
-
+  // DELETE CREATION
   if (methodUpper === "DELETE") {
     if (!creationId) return NextResponse.json({ error: "Creation ID required" });
 
-    const deleteCollectionItemsQuery = `
+    await sql`
       DELETE FROM creation_collection_items
-      WHERE creation_id = $1 AND
-            collection_id IN (SELECT id FROM creation_collections WHERE user_id = $2)
+      WHERE creation_id = ${creationId} AND
+            collection_id IN (SELECT id FROM creation_collections WHERE user_id = ${session.user.id})
     `;
-    await sql(deleteCollectionItemsQuery, creationId, session.user.id);
 
-    const deleteCreationQuery = `
+    const [deleted] = await sql`
       DELETE FROM user_creations
-      WHERE id = $1 AND user_id = $2
+      WHERE id = ${creationId} AND user_id = ${session.user.id}
       RETURNING *
     `;
-    const [deleted] = await sql(deleteCreationQuery, creationId, session.user.id);
 
     return NextResponse.json({ deleted });
   }
@@ -141,5 +139,5 @@ export async function handler(reqData) {
 }
 
 export async function POST(request) {
-  return handler(await request.json());
+return handler(await request.json());
 }

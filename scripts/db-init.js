@@ -87,6 +87,23 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     "sessionToken" VARCHAR(255) UNIQUE NOT NULL,
     expires TIMESTAMP NOT NULL
 );
+CREATE TABLE IF NOT EXISTS family_tree_members (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name TEXT NOT NULL,
+    relation_type TEXT,
+    date_of_birth DATE,
+    linked_galixee_user_id BIGINT,
+    x_position INT DEFAULT 0,
+    y_position INT DEFAULT 0,
+    parent_id BIGINT,
+    current_city TEXT,
+    current_state TEXT,
+    tree_position JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 CREATE TABLE IF NOT EXISTS user_profiles (
     id SERIAL PRIMARY KEY,

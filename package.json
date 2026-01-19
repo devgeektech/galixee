@@ -10,8 +10,8 @@
     "db:init": "node scripts/db-init.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
     "@vercel/postgres": "^0.10.0",
+    "dotenv": "^16.4.5",
     "mysql2": "^3.15.1",
     "next": "14.0.4",
     "next-auth": "^4.24.11",
@@ -19,7 +19,9 @@
     "postgres": "^3.4.7",
     "react": "^18",
     "react-dom": "^18",
-    "react-icons": "^5.5.0"
+    "react-icons": "^5.5.0",
+    "use-sync-external-store": "^1.6.0",
+    "zustand": "^5.0.10"
   },
   "devDependencies": {
     "autoprefixer": "^10.0.1",

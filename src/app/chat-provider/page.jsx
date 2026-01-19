@@ -1,7 +1,11 @@
 "use client";
-import React from "react";
+export const dynamic = 'force-dynamic';
 
-import { useHandleStreamResponse } from "../utilities/runtime-helpers";
+import React, { useState, useEffect } from "react";
+
+import { useHandleStreamResponse } from "../../utilities/runtime-helpers";
+import { useUser } from "../../components/use-user";
+import ChatWidget from "../../components/chat-widget";
 
 function MainComponent() {
   const [isOpen, setIsOpen] = useState(false);

@@ -1,10 +1,22 @@
 "use client";
-import React from "react";
+export const dynamic = 'force-dynamic';
+
+import React, { useState, useEffect } from "react";
 
 function MainComponent() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [autoSignIn, setAutoSignIn] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState("/welcome");
+
+  useEffect(() => {
+    // Get callbackUrl from URL on client side
+    const params = new URLSearchParams(window.location.search);
+    const callback = params.get("callbackUrl");
+    if (callback) {
+      setCallbackUrl(callback);
+    }
+  }, []);
 
   useEffect(() => {
     // Check for auto sign-in trigger from localStorage
@@ -129,10 +141,7 @@ function MainComponent() {
           <input
             type="hidden"
             name="callbackUrl"
-            value={
-              new URLSearchParams(window.location.search).get("callbackUrl") ||
-              "/welcome"
-            }
+            value={callbackUrl}
           />
 
           <button

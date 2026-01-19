@@ -1,10 +1,7 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 
-import { useHandleStreamResponse } from '../utilities/runtime-helpers'
-
-export default function Index() {
-  return (function MainComponent({
+export default function MainComponent({
   isOpen = false,
   onToggle,
   messages = [],
@@ -120,58 +117,3 @@ export default function Index() {
   );
 }
 
-function StoryComponent() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState("");
-
-  const handleStreamResponse = useHandleStreamResponse({
-    onChunk: setStreamingMessage,
-    onFinish: (message) => {
-      setMessages((prev) => [...prev, { role: "assistant", content: message }]);
-      setStreamingMessage("");
-      setIsLoading(false);
-    },
-  });
-
-  const handleSendMessage = async (message) => {
-    setIsLoading(true);
-    setMessages((prev) => [...prev, { role: "user", content: message }]);
-
-    try {
-      const response = await fetch("/integrations/chat-gpt/conversationgpt4", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: message }],
-          stream: true,
-        }),
-      });
-
-      handleStreamResponse(response);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#121212] p-4">
-      <h2 className="text-white text-2xl mb-4">Chat Widget Demo</h2>
-      <p className="text-gray-400 mb-8">
-        Click the chat button in the bottom right corner to start a conversation.
-      </p>
-
-      <MainComponent
-        isOpen={isOpen}
-        onToggle={() => setIsOpen(!isOpen)}
-        messages={messages}
-        onSendMessage={handleSendMessage}
-        isLoading={isLoading}
-        streamingMessage={streamingMessage}
-      />
-    </div>
-  );
-});
-}

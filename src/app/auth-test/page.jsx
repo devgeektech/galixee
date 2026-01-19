@@ -1,5 +1,10 @@
 "use client";
-import React from "react";
+export const dynamic = 'force-dynamic';
+
+import React, { useState } from "react";
+
+import { useUser } from "../../components/use-user";
+import { useAuth } from "../../components/use-auth";
 
 function MainComponent() {
   const { data: user, loading: userLoading } = useUser();

@@ -58,3 +58,4 @@ function MainComponent() {
       localStorage.setItem("sandbox_password", defaultPassword);
     }
   }, [email, password]);
+}

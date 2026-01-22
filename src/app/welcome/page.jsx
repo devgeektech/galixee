@@ -15,44 +15,156 @@ function MainComponent() {
 
   React.useEffect(() => {
     const checkUser = async () => {
+      // Declare localStorageUser outside try block so it's accessible in catch
+      let localStorageUser = null;
+      
       try {
+        // Get session token from localStorage (set during login)
+        const sessionToken = getSessionToken();
+        
+        // Debug loggin g
+   
+        // If no session token, user is not authenticated
+        if (!sessionToken) {
+          setUser(null);
+          setUserLoading(false);
+          addSessionEvent("❌ No session token found - not authenticated");
+          return;
+        }
+
+        // Check localStorage first for quick display
+        // Priority: galixee_session > galixee_user
         const storedSession = localStorage.getItem("galixee_session");
+        console.log("Stored session from localStorage:", storedSession);
+        console.log("Session token from localStorage:", sessionToken);
+        
         if (storedSession) {
-          const sessionData = JSON.parse(storedSession);
-          if (sessionData.user) {
-            setUser(sessionData.user);
-            setUserLoading(false);
-            addSessionEvent(
-              "✅ User found in localStorage: " + sessionData.user.email
-            );
-            return;
+          try {
+            const sessionData = JSON.parse(storedSession);
+            console.log("Parsed session data:", sessionData);
+            
+            // If user exists in stored session, ALWAYS use it
+            // We have localStorage data, so show the user immediately
+            // Token matching is not critical - we'll verify with server
+            if (sessionData.user) {
+              localStorageUser = sessionData.user;
+              setUser(sessionData.user);
+              addSessionEvent(
+                "✅ User found in localStorage: " + sessionData.user.email
+              );
+              // Still verify with server, but show user immediately
+              
+              // Log token info for debugging (non-critical)
+              if (sessionData.sessionToken && sessionToken && 
+                  sessionData.sessionToken !== sessionToken) {
+                console.log("Session token mismatch (non-critical):", {
+                  stored: sessionData.sessionToken?.substring(0, 10) + "...",
+                  current: sessionToken?.substring(0, 10) + "..."
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Failed to parse stored session:", e);
+          }
+        }
+        
+        // If we still don't have a user, try getting from galixee_user
+        if (!localStorageUser) {
+          const storedUser = localStorage.getItem("galixee_user");
+          if (storedUser) {
+            try {
+              const userData = JSON.parse(storedUser);
+              if (userData.user) {
+                localStorageUser = userData.user;
+                setUser(userData.user);
+                addSessionEvent(
+                  "✅ User found in galixee_user: " + userData.user.email
+                );
+              }
+            } catch (e) {
+              console.error("Failed to parse galixee_user:", e);
+            }
+          }
+        }
+        
+        // If we have a sessionToken but no user yet, try one more time with just the token
+        if (!localStorageUser && sessionToken) {
+          // Last resort: if we have token, show a basic user state
+          // This ensures the UI shows logged in state
+          const email = localStorage.getItem("sandbox_email");
+          if (email) {
+            localStorageUser = { email: email, id: null, name: null };
+            setUser(localStorageUser);
+            addSessionEvent("⚠️ Using fallback user from sandbox_email");
           }
         }
 
-        // Send session token in the request for client-based session lookup
-        const sessionToken = getSessionToken();
+        // Only call API if session token exists
         const response = await authenticatedFetch("/api/get-session-enhanced", {
           method: "POST",
-          body: sessionToken ? JSON.stringify({ sessionToken }) : undefined,
+          body: JSON.stringify({ sessionToken }),
         });
 
         if (response.ok) {
           const data = await response.json();
           if (data && data.user) {
+            // Update user state with server data
             setUser(data.user);
-            addSessionEvent("✅ User found via API: " + data.user.email);
+            
+            // Update localStorage with fresh session data
+            if (typeof window !== "undefined") {
+              localStorage.setItem("galixee_session", JSON.stringify({
+                user: data.user,
+                sessionToken: sessionToken,
+                expires: data.expires,
+                timestamp: Date.now(),
+              }));
+            }
+            
+            addSessionEvent("✅ User authenticated via API: " + data.user.email);
           } else {
-            setUser(null);
-            addSessionEvent("❌ No user session found");
+            // No valid session on server - but keep showing user from localStorage
+            // Don't clear localStorage - keep the data for authentication
+            // Only clear on explicit logout
+            if (!localStorageUser) {
+              // Only clear if we don't have localStorage data
+              setUser(null);
+              addSessionEvent("❌ No user session found on server (keeping localStorage)");
+            } else {
+              // Keep showing user from localStorage
+              addSessionEvent("⚠️ Server session not found, using localStorage data");
+            }
           }
         } else {
-          setUser(null);
-          addSessionEvent("❌ Session API failed");
+          // API failed - DON'T clear localStorage
+          // Keep showing user from localStorage if available
+          // Only clear on explicit logout
+          if (response.status === 401) {
+            // Only clear on 401 Unauthorized (explicit invalid session)
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("galixee_session");
+              localStorage.removeItem("galixee_session_token");
+              localStorage.removeItem("galixee_user");
+            }
+            setUser(null);
+            addSessionEvent("❌ Unauthorized - cleared localStorage");
+          } else {
+            // Other errors - keep showing user from localStorage if available
+            if (!localStorageUser) {
+              setUser(null);
+            }
+            addSessionEvent("❌ Session API failed (using localStorage data)");
+          }
         }
       } catch (error) {
         console.error("User check failed:", error);
-        setUser(null);
-        addSessionEvent("❌ Error checking user: " + error.message);
+        // DON'T clear localStorage on error
+        // Keep showing user from localStorage if available
+        // Only clear on explicit logout
+        if (!localStorageUser) {
+          setUser(null);
+        }
+        addSessionEvent("❌ Error checking user: " + error.message + " (using localStorage data)");
       } finally {
         setUserLoading(false);
       }
@@ -81,11 +193,17 @@ function MainComponent() {
       }
 
       try {
-        // Send session token in the request for client-based session lookup
+        // Only check session if token exists
         const sessionToken = getSessionToken();
+        if (!sessionToken) {
+          addSessionEvent("❌ No session token - skipping session check");
+          return;
+        }
+
+        // Send session token in the request for client-based session lookup
         const enhancedResponse = await authenticatedFetch("/api/get-session-enhanced", {
           method: "POST",
-          body: sessionToken ? JSON.stringify({ sessionToken }) : undefined,
+          body: JSON.stringify({ sessionToken }),
         });
 
         if (enhancedResponse.ok) {
@@ -229,18 +347,34 @@ function MainComponent() {
 
   React.useEffect(() => {
     const validateSession = async () => {
+      // Only validate if we have a session token
+      const sessionToken = getSessionToken();
+      if (!sessionToken) {
+        addSessionEvent("❌ No session token - skipping validation");
+        return;
+      }
+
       try {
-        const response = await fetch("/api/session-persistence-handler", {
+        const response = await authenticatedFetch("/api/session-persistence-handler", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ action: "validate" }),
+          body: JSON.stringify({ 
+            action: "validate",
+            sessionToken: sessionToken 
+          }),
         });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
         const data = await response.json();
 
         if (!data.valid && data.needsReauth) {
           addSessionEvent("Session validation failed - needs re-auth");
+          // DON'T clear localStorage here - only clear on explicit logout
+          // Keep the data in localStorage for authentication
+          // DON'T clear user state - keep showing user from localStorage
+          // Only clear on explicit logout
           const storedEmail = localStorage.getItem("sandbox_email");
           if (storedEmail) {
             addSessionEvent("Attempting session restore for: " + storedEmail);
@@ -250,6 +384,9 @@ function MainComponent() {
         }
       } catch (error) {
         addSessionEvent("Session validation error: " + error.message);
+        // DON'T clear localStorage on error
+        // Keep the data in localStorage for authentication
+        // Only clear on explicit logout
       }
     };
 
@@ -524,6 +661,21 @@ function MainComponent() {
           {user && (
             <a
               href="/account/logout"
+              onClick={(e) => {
+                // Clear localStorage immediately on logout click
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("galixee_session");
+                  localStorage.removeItem("galixee_session_token");
+                  localStorage.removeItem("galixee_user");
+                  localStorage.removeItem("sandbox_email");
+                  localStorage.removeItem("sandbox_session_active");
+                  localStorage.removeItem("sandbox_session_time");
+                }
+                // Clear user state immediately
+                setUser(null);
+                addSessionEvent("🔓 Logout clicked - cleared localStorage");
+                // Let the default navigation happen to /account/logout
+              }}
               className="text-gray-300 hover:text-white transition-colors"
             >
               Sign Out

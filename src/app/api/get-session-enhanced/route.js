@@ -4,7 +4,7 @@ import { getSessionTokenFromRequest } from "@/utilities/getSessionToken";
 // POST handler
 export async function POST(request) {
   try {
-    // Extract session token from request (header, cookie, or body)
+    // First, try to get session token from headers/cookies (before reading body)
     let sessionToken = getSessionTokenFromRequest(request);
     
     // If not in headers/cookies, try to get from body
@@ -17,7 +17,17 @@ export async function POST(request) {
         }
       } catch (error) {
         // Body parsing failed, continue without it
+        console.log("Body parsing failed:", error.message);
       }
+    }
+
+    // Debug logging
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Session token lookup:", {
+        hasToken: !!sessionToken,
+        tokenLength: sessionToken?.length,
+        tokenPreview: sessionToken ? sessionToken.substring(0, 10) + "..." : null,
+      });
     }
 
     // Get session using the client's session token (client-based session)

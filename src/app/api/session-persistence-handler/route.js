@@ -1,8 +1,14 @@
 import getSession from "@/utilities/getSession";
+import { getSessionTokenFromRequest } from "@/utilities/getSessionToken";
 import sql from "@/db";
 import { NextResponse } from "next/server";
-async function handler({ action, sessionData, userId, email }) {
-  const session = await getSession();
+
+async function handler(request, { action, sessionData, userId, email, sessionToken: bodySessionToken }) {
+  // Get session token from request (header, cookie, or body)
+  const sessionToken = getSessionTokenFromRequest(request) || bodySessionToken;
+  
+  // Use session token for client-based session lookup
+  const session = await getSession(sessionToken);
 
   if (action === "validate") {
     if (!session || !session.user) {
@@ -245,5 +251,7 @@ async function handler({ action, sessionData, userId, email }) {
   };
 }
 export async function POST(request) {
-  return handler(await request.json());
+  const body = await request.json().catch(() => ({}));
+  const result = await handler(request, body);
+  return NextResponse.json(result);
 }

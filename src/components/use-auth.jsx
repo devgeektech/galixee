@@ -129,6 +129,8 @@ function useAuth() {
 
       if (typeof window !== "undefined") {
         localStorage.removeItem("galixee_session");
+        localStorage.removeItem("galixee_session_token");
+        localStorage.removeItem("galixee_user");
         localStorage.removeItem("user_data");
       }
 
@@ -143,6 +145,8 @@ function useAuth() {
 
       if (typeof window !== "undefined") {
         localStorage.removeItem("galixee_session");
+        localStorage.removeItem("galixee_session_token");
+        localStorage.removeItem("galixee_user");
         localStorage.removeItem("user_data");
       }
 

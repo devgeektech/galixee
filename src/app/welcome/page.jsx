@@ -2,6 +2,7 @@
 import React from "react";
 import AdBanner from "../../components/ad-banner"
 import BetaFeedbackWidget from "../../components/beta-feedback-widget"
+import { authenticatedFetch, getSessionToken } from "../../utilities/apiClient"
 function MainComponent() {
   const [user, setUser] = React.useState(null);
   const [userLoading, setUserLoading] = React.useState(true);
@@ -28,8 +29,11 @@ function MainComponent() {
           }
         }
 
-        const response = await fetch("/api/get-session-enhanced", {
+        // Send session token in the request for client-based session lookup
+        const sessionToken = getSessionToken();
+        const response = await authenticatedFetch("/api/get-session-enhanced", {
           method: "POST",
+          body: sessionToken ? JSON.stringify({ sessionToken }) : undefined,
         });
 
         if (response.ok) {
@@ -77,8 +81,11 @@ function MainComponent() {
       }
 
       try {
-        const enhancedResponse = await fetch("/api/get-session-enhanced", {
+        // Send session token in the request for client-based session lookup
+        const sessionToken = getSessionToken();
+        const enhancedResponse = await authenticatedFetch("/api/get-session-enhanced", {
           method: "POST",
+          body: sessionToken ? JSON.stringify({ sessionToken }) : undefined,
         });
 
         if (enhancedResponse.ok) {

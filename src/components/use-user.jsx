@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { authenticatedFetch, getSessionToken } from "../utilities/apiClient";
 
 function useUser(options = {}) {
   const {
@@ -17,13 +18,14 @@ function useUser(options = {}) {
     try {
       setError(null);
       
-      const response = await fetch('/api/get-session-enhanced', {
+      // Get session token and send it in the request for client-based session lookup
+      const sessionToken = getSessionToken();
+      const response = await authenticatedFetch('/api/get-session-enhanced', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        credentials: 'include',
+        body: sessionToken ? JSON.stringify({ sessionToken }) : undefined,
       });
 
       if (!response.ok) {

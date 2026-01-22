@@ -52,18 +52,26 @@ function MainComponent() {
 
       if (result.sessionToken) {
         if (typeof window !== "undefined") {
+          // Store session token for API requests
           localStorage.setItem("galixee_session_token", result.sessionToken);
-          localStorage.setItem(
-            "galixee_user",
-            JSON.stringify({
+          
+          // Store full session data in the format expected by welcome page
+          const sessionData = {
+            user: {
               id: result.user.id,
               email: result.user.email,
               name: result.user.name,
-              sessionToken: result.sessionToken,
-              expires: result.expires,
-              timestamp: Date.now(),
-            })
-          );
+            },
+            sessionToken: result.sessionToken,
+            expires: result.expires,
+            timestamp: Date.now(),
+          };
+          
+          localStorage.setItem("galixee_session", JSON.stringify(sessionData));
+          localStorage.setItem("galixee_user", JSON.stringify(sessionData));
+          
+          // Also store email for session repair if needed
+          localStorage.setItem("sandbox_email", result.user.email);
         }
       }
 

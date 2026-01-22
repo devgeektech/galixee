@@ -1,62 +1,36 @@
-import sql from "@/db";
-// Handler to get session from DB
-async function handler() {
-  try {
-    // 1️⃣ Try to get the latest active session
-    const activeSessions = await sql`SELECT 
-  s."userId",
-  s.expires,
-  u.name,
-  u.email,
-  p.first_name,
-  p.last_name,
-  u.image
-FROM auth_sessions s
-JOIN auth_users u ON s."userId" = u.id
-LEFT JOIN user_profiles p ON u.id = p.user_id
-WHERE s.expires > NOW()
-ORDER BY s.expires DESC
-LIMIT 1`;
-
-
-    if (activeSessions.length > 0) {
-      const sessionData = activeSessions[0];
-
-      return {
-        user: {
-          id: sessionData.userId,
-          name:
-            sessionData.name ||
-            `${sessionData.first_name || ""} ${sessionData.last_name || ""}`.trim() ||
-            null,
-          email: sessionData.email,
-          image: sessionData.image,
-          subscription_status: sessionData.subscription_status ?? null,
-          stripe_id: sessionData.stripe_id ?? null,
-        },
-        expires: sessionData.expires,
-      };
-    }
-  } catch (error) {
-    console.error("Database session lookup failed:", error);
-  }
-
-  // No session found
-  return null;
-}
+import getSession from "@/utilities/getSession";
+import { getSessionTokenFromRequest } from "@/utilities/getSessionToken";
 
 // POST handler
 export async function POST(request) {
-  let body = {};
-
   try {
-    const text = await request.text();
-    body = text ? JSON.parse(text) : {};
+    // Extract session token from request (header, cookie, or body)
+    let sessionToken = getSessionTokenFromRequest(request);
+    
+    // If not in headers/cookies, try to get from body
+    if (!sessionToken) {
+      try {
+        const text = await request.text();
+        if (text) {
+          const body = JSON.parse(text);
+          sessionToken = body.sessionToken || null;
+        }
+      } catch (error) {
+        // Body parsing failed, continue without it
+      }
+    }
+
+    // Get session using the client's session token (client-based session)
+    const sessionData = await getSession(sessionToken);
+
+    if (sessionData) {
+      return Response.json(sessionData);
+    }
+
+    // No session found
+    return Response.json({});
   } catch (error) {
-    console.error("Failed to parse JSON body:", error);
+    console.error("Session lookup failed:", error);
+    return Response.json({ error: "Session lookup failed" }, { status: 500 });
   }
-
-  const sessionData = await handler(body);
-
-  return Response.json(sessionData || {});
 }

@@ -1,9 +1,15 @@
 import sql from "@/db";
 import getSession from "@/utilities/getSession";
+import { getSessionTokenFromRequest } from "@/utilities/getSessionToken";
 import { NextResponse } from "next/server";
 
 async function handler(request) {
-  const session = await getSession();
+  // Get session token from request (header, cookie, or body)
+  const sessionToken = getSessionTokenFromRequest(request);
+  
+  // Get session using the client's session token (client-based session)
+  const session = await getSession(sessionToken);
+  
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

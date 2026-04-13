@@ -1,7 +1,9 @@
 "use client";
 import React from "react";
+import { useRouter } from "next/navigation";
 
 function MainComponent() {
+  const router = useRouter();
   const [error, setError] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [email, setEmail] = React.useState("test@example.com");
@@ -27,6 +29,7 @@ function MainComponent() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include", // Important: Allow cookies to be set
         body: JSON.stringify({
           email: email.trim(),
           password: password,
@@ -40,7 +43,7 @@ function MainComponent() {
           result.error === "Configuration" ||
           result.error.includes("initialize")
         ) {
-          window.location.href = `/account/signup${window.location.search}`;
+          router.push(`/account/signup${window.location.search}`);
           return;
         }
         throw new Error(result.error);
@@ -52,6 +55,15 @@ function MainComponent() {
 
       if (result.sessionToken) {
         if (typeof window !== "undefined") {
+          // Clear old session data first to prevent cross-profile contamination
+          localStorage.removeItem("galixee_session_token");
+          localStorage.removeItem("galixee_user");
+          localStorage.removeItem("galixee_session");
+          localStorage.removeItem("sandbox_email");
+          localStorage.removeItem("sandbox_session_active");
+          localStorage.removeItem("sandbox_session_time");
+          
+          // Store new session data
           localStorage.setItem("galixee_session_token", result.sessionToken);
           localStorage.setItem(
             "galixee_user",
@@ -64,10 +76,15 @@ function MainComponent() {
               timestamp: Date.now(),
             })
           );
+          
+          // Small delay to ensure localStorage is synced and cookies are set
+          setTimeout(() => {
+            router.push(callbackUrl);
+          }, 100);
         }
+      } else {
+        throw new Error("No session token received from server");
       }
-
-      window.location.href = callbackUrl;
     } catch (err) {
       console.log("errrrrrr",err)
       const errorMessages = {

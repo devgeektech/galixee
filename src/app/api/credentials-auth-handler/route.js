@@ -1,5 +1,6 @@
 import sql from '@/db';
 import { NextResponse } from "next/server";
+import { generateAccessToken, generateRefreshToken } from "@/utilities/jwt-utils";
 const crypto = require("crypto");
 
 
@@ -80,14 +81,22 @@ async function handler({ email, password }) {
       AND expires < NOW()
     `;
 
+    // Also delete any other existing sessions for this user to avoid conflicts
+    // (only one active session per user)
+    await sql`
+      DELETE FROM auth_sessions 
+      WHERE "userId" = ${account.userId}
+    `;
+
     // Create new session with proper format
     const sessionToken = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const expiresDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const expiresISO = expiresDate.toISOString(); // Convert to ISO string for database
 
     // Insert the session
     await sql`
       INSERT INTO auth_sessions ("userId", expires, "sessionToken")
-      VALUES (${account.userId}, ${expires}, ${sessionToken})
+      VALUES (${account.userId}, ${expiresISO}, ${sessionToken})
     `;
 
     // Verify the session was created
@@ -105,6 +114,10 @@ async function handler({ email, password }) {
 
     const sessionData = sessionCheck[0];
 
+    // Generate JWT tokens for mobile
+    const accessToken = generateAccessToken(sessionData.id, sessionData.email, sessionData.name);
+    const refreshToken = generateRefreshToken(sessionData.id, sessionData.email);
+
     // Store session in a global variable that getSession() can access
     global.currentSession = {
       user: {
@@ -114,29 +127,58 @@ async function handler({ email, password }) {
         // image: sessionData.image,
       },
       sessionToken,
-      expires: expires.toISOString(),
+      expires: expiresISO,
     };
-  return NextResponse.json({
-  success: true,
-  user: {
-    id: sessionData.id,
-    name: sessionData.name,
-    email: sessionData.email,
-  },
-  sessionToken,
-  expires: expires.toISOString(),
-  sessionCreated: true,
-  userId: account.userId,
-  sessionData: {
-    user: {
-      id: sessionData.id,
-      name: sessionData.name,
-      email: sessionData.email,
-    },
-    sessionToken,
-    expires: expires.toISOString(),
-  },
-});
+
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: sessionData.id,
+        name: sessionData.name,
+        email: sessionData.email,
+      },
+      // Session-based (for web/browser)
+      sessionToken,
+      expires: expiresISO,
+      sessionCreated: true,
+      userId: account.userId,
+      // JWT tokens (for mobile)
+      accessToken,
+      refreshToken,
+      tokenType: "Bearer",
+      sessionData: {
+        user: {
+          id: sessionData.id,
+          name: sessionData.name,
+          email: sessionData.email,
+        },
+        sessionToken,
+        expires: expiresISO,
+      },
+    });
+
+    // Clear old cookies first to prevent cross-profile contamination
+    response.cookies.delete("galixee_session_token");
+    response.cookies.delete("sessionToken");
+
+    // Set session token as HTTP-only cookie for middleware to read
+    response.cookies.set("galixee_session_token", sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
+      path: "/",
+    });
+
+    // Also set a non-httpOnly cookie for client-side access
+    response.cookies.set("sessionToken", sessionToken, {
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60,
+      path: "/",
+    });
+
+    return response;
 
   } catch (error) {
     console.error("Authentication error:", error);

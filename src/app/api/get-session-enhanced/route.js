@@ -1,8 +1,38 @@
 import sql from "@/db";
+import { cookies, headers } from "next/headers";
+import { verifyAccessToken } from "@/utilities/jwt-utils";
+
 // Handler to get session from DB
-async function handler() {
+async function handler(request) {
   try {
-    // 1️⃣ Try to get the latest active session
+    const cookieStore = await cookies();
+    const headerStore = await headers();
+    
+    let sessionToken = cookieStore.get("galixee_session_token")?.value;
+
+    // If no session token from cookies, try Authorization header (mobile)
+    if (!sessionToken) {
+      const authHeader = headerStore.get("Authorization");
+      if (authHeader?.startsWith("Bearer ")) {
+        const jwtToken = authHeader.substring(7);
+        const decoded = verifyAccessToken(jwtToken);
+        
+        if (decoded) {
+          // For JWT, return decoded data directly
+          return {
+            user: {
+              id: decoded.userId,
+              name: decoded.name,
+              email: decoded.email,
+            },
+            source: "jwt",
+          };
+        }
+      }
+      return null;
+    }
+
+    // Query the specific session from the token
     const activeSessions = await sql`SELECT 
   s."userId",
   s.expires,
@@ -14,9 +44,8 @@ async function handler() {
 FROM auth_sessions s
 JOIN auth_users u ON s."userId" = u.id
 LEFT JOIN user_profiles p ON u.id = p.user_id
-WHERE s.expires > NOW()
-ORDER BY s.expires DESC
-LIMIT 1`;
+WHERE s."sessionToken" = ${sessionToken}
+AND s.expires > NOW()`;
 
 
     if (activeSessions.length > 0) {
@@ -31,10 +60,9 @@ LIMIT 1`;
             null,
           email: sessionData.email,
           image: sessionData.image,
-          subscription_status: sessionData.subscription_status ?? null,
-          stripe_id: sessionData.stripe_id ?? null,
         },
         expires: sessionData.expires,
+        source: "session",
       };
     }
   } catch (error) {
@@ -56,7 +84,7 @@ export async function POST(request) {
     console.error("Failed to parse JSON body:", error);
   }
 
-  const sessionData = await handler(body);
+  const sessionData = await handler(request);
 
   return Response.json(sessionData || {});
 }

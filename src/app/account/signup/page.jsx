@@ -23,6 +23,7 @@ function MainComponent() {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify({
         action: "signup",
         email,
@@ -70,6 +71,7 @@ function MainComponent() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({ email: email.trim(), name, password }),
       });
 

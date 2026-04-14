@@ -631,7 +631,7 @@ function MainComponent() {
       <main className="pt-24 px-6 pb-16 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#6366F1] to-[#4FD1C5]">
-            Welcome to Galixeedsds
+            Welcome to Galixee
           </h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
             This is your Galixee in the Foreververse. Build YOUR GALIXEE how you

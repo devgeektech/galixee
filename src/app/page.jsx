@@ -26,7 +26,7 @@ function MainComponent() {
               Welcome to Galixee
             </h1>
             <p className="text-xl md:text-2xl text-[#808080] mb-12 max-w-3xl mx-auto">
-              Your gateway to infinite cosmic possibilities
+              Your gateway to infinite cosmic possibilities11111111111111
             </p>
 
             {!loading && !user ? (

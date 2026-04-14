@@ -1,10 +1,12 @@
 /**
  * Authentication Utilities
  * Provides reusable functions for protecting API routes
+ * Supports both session tokens and JWT tokens
  */
 
 import { NextResponse } from "next/server";
 import getSession from "@/utilities/getSession";
+import { verifyAccessToken } from "@/utilities/jwt-utils";
 
 /**
  * Authenticates a request and returns the session
@@ -21,20 +23,59 @@ export async function requireAuth() {
 }
 
 /**
+ * Check JWT token from Authorization header
+ * Returns decoded token if valid
+ */
+export function checkJWTToken(request) {
+  const authHeader = request.headers.get("Authorization");
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  return verifyAccessToken(token);
+}
+
+/**
  * Middleware-like function to check authentication
  * Returns error response if not authenticated
+ * Now supports both session tokens and JWT tokens
  */
-export async function checkAuth() {
+export async function checkAuth(request = null) {
+  // First, try JWT token from Authorization header
+  if (request) {
+    const jwtDecoded = checkJWTToken(request);
+    if (jwtDecoded) {
+      return {
+        session: {
+          user: {
+            id: jwtDecoded.userId,
+            email: jwtDecoded.email,
+            name: jwtDecoded.name,
+          },
+        },
+        error: null,
+        tokenType: "jwt",
+      };
+    }
+  }
+
+  // Fall back to session token
   const session = await getSession();
 
   if (!session?.user?.id) {
-    return NextResponse.json(
-      { error: "Unauthorized", code: "AUTH_REQUIRED" },
-      { status: 401 }
-    );
+    return {
+      session: null,
+      error: NextResponse.json(
+        { error: "Unauthorized", code: "AUTH_REQUIRED" },
+        { status: 401 }
+      ),
+      tokenType: null,
+    };
   }
 
-  return { session, error: null };
+  return { session, error: null, tokenType: "session" };
 }
 
 /**

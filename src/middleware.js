@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { verifyAccessToken } from "@/utilities/jwt-utils";
 
 export const config = {
   matcher: [
@@ -19,6 +20,7 @@ const PUBLIC_ROUTES = [
   "/legal/trademark",
   "/legal/patent",
   "/debug-auth",
+  "/webview", // WebView has its own token validation
 ];
 
 // Routes that require authentication
@@ -61,7 +63,22 @@ const PROTECTED_API_ROUTES = [
   "/api/get-subscription-status",
 ];
 
+// API routes that DON'T require authentication (public APIs)
+const PUBLIC_API_ROUTES = [
+  "/api/signin",
+  "/api/signup",
+  "/api/logout",
+  "/api/webview-auth",
+];
+
 function isProtectedRoute(pathname) {
+  // Check if it's a public API route (skip protection)
+  for (const route of PUBLIC_API_ROUTES) {
+    if (pathname === route || pathname.startsWith(route)) {
+      return false;
+    }
+  }
+
   // Check if it's a protected API route
   for (const route of PROTECTED_API_ROUTES) {
     if (pathname.startsWith(route)) {
@@ -116,24 +133,47 @@ export function middleware(request) {
 
   // Check if route requires authentication
   if (isProtectedRoute(pathname)) {
-    // Check for session
+    // First, check for session token in cookies
     const sessionToken =
       request.cookies.get("galixee_session_token")?.value ||
       request.cookies.get("sessionToken")?.value;
 
-    if (!sessionToken) {
-      // Redirect to login page with callback URL
-      const loginUrl = new URL("/account/signin", request.url);
-      loginUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // For API routes, you can add additional validation here
-    if (pathname.startsWith("/api/")) {
+    if (sessionToken) {
       // Session token exists, allow the request
-      // The API route handler will do detailed validation with getSession()
       return NextResponse.next();
     }
+
+    // Second, check for JWT token in Authorization header
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      try {
+        const decoded = verifyAccessToken(token);
+        if (decoded) {
+          // JWT token is valid, set it in a header for server components to use
+          const nextResponse = NextResponse.next();
+          nextResponse.headers.set("x-auth-token", token);
+          nextResponse.headers.set("x-user-id", decoded.userId);
+          return nextResponse;
+        }
+      } catch (error) {
+        console.error("JWT verification failed in middleware:", error);
+      }
+    }
+
+    // No valid authentication found
+    // For API routes, return 401
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Unauthorized", code: "NO_AUTH" },
+        { status: 401 }
+      );
+    }
+
+    // For page routes, redirect to login
+    const loginUrl = new URL("/account/signin", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();

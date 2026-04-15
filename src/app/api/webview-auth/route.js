@@ -45,6 +45,7 @@ const sessions = await sql`
   FROM auth_sessions s
   JOIN auth_users u ON u.id = s."userId"
   WHERE s."sessionToken" = ${token}
+  AND s.expires > NOW()
   LIMIT 1
 `;
 

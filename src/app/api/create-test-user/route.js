@@ -86,7 +86,7 @@ async function handler() {
       },
       user: {
         id: userId,
-        name: "Test User",
+        name: name,
         email: email,
         emailVerified: new Date(),
         hasCredentialsAccount: true,

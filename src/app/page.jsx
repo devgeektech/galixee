@@ -12,13 +12,23 @@ function MainComponent() {
 
   return (
     <div className="min-h-screen bg-[#121212] text-white font-roboto">
-      <nav className="fixed top-0 left-0 right-0 bg-[#121212]/90 backdrop-blur-sm z-50 flex justify-between items-center p-6 border-b border-[#333333]">
+         <nav className="fixed top-0 left-0 right-0 bg-[#121212]/90 backdrop-blur-sm z-50 flex justify-between items-center p-6 border-b border-[#333333]">
+        {/* Left Side Logo */}
         <a href="/" className="text-2xl font-bold text-white flex items-center">
           <i className="fas fa-galaxy mr-2"></i>
           Galixee
         </a>
-      </nav>
 
+        {/* Right Side Button */}
+        {!loading && user && (
+          <a
+            href="/welcome"
+            className="px-5 py-2 rounded-full bg-gradient-to-r from-[#6366F1] to-[#4FD1C5] hover:from-[#4F46E5] hover:to-[#38B2AC] text-white font-semibold transition-all duration-300 shadow-lg"
+          >
+            Go to Dashboard
+          </a>
+        )}
+      </nav>
       <main className="pt-24">
         <div className="max-w-6xl mx-auto px-6 py-20 text-center relative">
           <div className="space-y-8">

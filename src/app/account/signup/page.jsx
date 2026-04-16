@@ -32,10 +32,14 @@ function MainComponent() {
       }),
     });
 
+    
+
     if (!response.ok) {
+      
       const errorData = await response.json();
       throw new Error(errorData.error || "Sign up failed");
     }
+    console.log("auth credentials response status:", response);
 
     return await response.json();
   };
@@ -66,7 +70,7 @@ function MainComponent() {
     try {
       // First, let's test our debug function
       console.log("Testing signup debug...");
-      const debugResponse = await fetch("/api/debug-signup", {
+      const debugResponse = await fetch("/api/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,14 +81,12 @@ function MainComponent() {
 
       const debugResult = await debugResponse.json();
       console.log("debbbbbbbbbbbbbbbbbb",debugResult)
-      if (debugResult.status !== 'success' ) {
-        console.log("errrrrrrrrrrrr")
+     if (!debugResult.success) {
+  setError(debugResult.error || debugResult.message);
+  throw new Error(debugResult.error || debugResult.message);
+}
 
-        setError(debugResult.message);
-        throw new Error(debugResult.message);
-      }
-
-      console.log("Debug result:", debugResult);
+      console.log("SIGNUP  result:", debugResult);
 
       // Get the callback URL from the URL parameters, defaulting to /welcome if not present
       const params = new URLSearchParams(window.location.search);
@@ -106,13 +108,15 @@ function MainComponent() {
 
 
 
-      const result = await signUpWithCredentials({
-        email: email.trim(),
-        password,
-        name: name || email.split("@")[0],
-        callbackUrl,
-        redirect: false,
-      });
+      const result = debugResult;
+
+if (!result.success) {
+   throw new Error(result.error);
+}
+
+setTimeout(() => {
+  window.location.href = callbackUrl;
+}, 2000);
       console.log("resule it asss",result)
       if (result?.error) {
         console.error("SignUp error:", result.error);
@@ -127,7 +131,9 @@ function MainComponent() {
       console.log("Signup successful, redirecting to:", callbackUrl);
 
       // Simple redirect without complex session handling
-      window.location.href = callbackUrl;
+      setTimeout(() => {
+  window.location.href = callbackUrl;
+}, 2000);
     } catch (err) {
       console.error("Sign up error:", err);
 

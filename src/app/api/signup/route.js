@@ -1,5 +1,10 @@
 import sql from "@/db";
 import { NextResponse } from "next/server";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "@/utilities/jwt-utils";
+
 const crypto = require("crypto");
 
 function hashPassword(password) {
@@ -17,7 +22,8 @@ export async function POST(request) {
     const password = body.password;
     const name = body.name?.trim();
 
-    // Validation
+    /* ---------------- VALIDATION ---------------- */
+
     if (!email || !password || !name) {
       return NextResponse.json(
         { error: "Name, email and password are required" },
@@ -32,7 +38,8 @@ export async function POST(request) {
       );
     }
 
-    // Check duplicate email
+    /* ---------------- CHECK DUPLICATE ---------------- */
+
     const existing = await sql`
       SELECT id FROM auth_users WHERE email = ${email}
     `;
@@ -44,7 +51,8 @@ export async function POST(request) {
       );
     }
 
-    // Create user
+    /* ---------------- CREATE USER ---------------- */
+
     const newUser = await sql`
       INSERT INTO auth_users (name, email, "emailVerified")
       VALUES (${name}, ${email}, NOW())
@@ -53,10 +61,12 @@ export async function POST(request) {
 
     const user = newUser[0];
 
-    // Hash password
+    /* ---------------- HASH PASSWORD ---------------- */
+
     const hashedPassword = hashPassword(password);
 
-    // Create credentials account
+    /* ---------------- CREATE ACCOUNT ---------------- */
+
     await sql`
       INSERT INTO auth_accounts (
         "userId",
@@ -74,7 +84,8 @@ export async function POST(request) {
       )
     `;
 
-    // Create profile
+    /* ---------------- CREATE PROFILE ---------------- */
+
     await sql`
       INSERT INTO user_profiles (
         user_id,
@@ -86,7 +97,58 @@ export async function POST(request) {
       )
     `;
 
-    return NextResponse.json({
+    /* ---------------- CREATE SESSION ---------------- */
+
+    const sessionToken = crypto.randomBytes(32).toString("hex");
+
+    const expiresDate = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000
+      // Date.now()+ 2 * 60 * 1000
+    );
+
+    const expiresISO = expiresDate.toISOString();
+
+    await sql`
+      INSERT INTO auth_sessions (
+        "userId",
+        expires,
+        "sessionToken"
+      )
+      VALUES (
+        ${user.id},
+        ${expiresISO},
+        ${sessionToken}
+      )
+    `;
+
+    /* ---------------- JWT TOKENS ---------------- */
+
+    const accessToken = generateAccessToken(
+      user.id,
+      user.email,
+      user.name
+    );
+
+    const refreshToken = generateRefreshToken(
+      user.id,
+      user.email
+    );
+
+    /* ---------------- GLOBAL SESSION ---------------- */
+
+    global.currentSession = {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+      sessionToken,
+      expires: expiresISO,
+    };
+
+    /* ---------------- RESPONSE ---------------- */
+
+    const response = NextResponse.json({
       success: true,
       message: "Account created successfully",
       user: {
@@ -94,8 +156,58 @@ export async function POST(request) {
         name: user.name,
         email: user.email,
       },
+
+      sessionToken,
+      expires: expiresISO,
+      sessionCreated: true,
+
+      accessToken,
+      refreshToken,
+      tokenType: "Bearer",
+
+      sessionData: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+        sessionToken,
+        expires: expiresISO,
+      },
     });
 
+    /* ---------------- COOKIES ---------------- */
+
+    response.cookies.set(
+      "galixee_session_token",
+      sessionToken,
+      {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60,
+        // maxAge: 2 * 60,
+        path: "/",
+      }
+    );
+
+    response.cookies.set("session_expires", expiresISO, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60,
+      path: "/",
+    });
+
+    response.cookies.set("sessionToken", sessionToken, {
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60,
+        // maxAge: 2 * 60,
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("Signup error:", error);
 

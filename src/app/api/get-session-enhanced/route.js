@@ -8,7 +8,9 @@ async function handler(request) {
     const cookieStore = await cookies();
     const headerStore = await headers();
     
-    let sessionToken = cookieStore.get("galixee_session_token")?.value;
+    let sessionToken =
+      cookieStore.get("galixee_session_token")?.value ||
+      cookieStore.get("sessionToken")?.value;
 
     // If no session token from cookies, try Authorization header (mobile)
     if (!sessionToken) {

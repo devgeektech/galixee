@@ -75,29 +75,43 @@ async function handler({ email, password }) {
     }
 
     // Clean up old sessions for this user
-    await sql`
-      DELETE FROM auth_sessions 
-      WHERE "userId" = ${account.userId} 
-      AND expires < NOW()
-    `;
+   await sql`
+  DELETE FROM auth_sessions 
+  WHERE "userId" = ${account.userId}
+  AND expires < NOW()
+`;
+
 
     // Also delete any other existing sessions for this user to avoid conflicts
     // (only one active session per user)
     await sql`
-      DELETE FROM auth_sessions 
-      WHERE "userId" = ${account.userId}
+      
+  DELETE FROM auth_sessions 
+  WHERE "userId" = ${account.userId}
+  
+
+      
     `;
 
     // Create new session with proper format
     const sessionToken = crypto.randomBytes(32).toString("hex");
-    const expiresDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-    const expiresISO = expiresDate.toISOString(); // Convert to ISO string for database
+    const sessionLifetimeSeconds = 30 * 24 * 60 * 60;
+    const sessionLifetimeMinutes = Math.floor(sessionLifetimeSeconds / 60);
 
-    // Insert the session
-    await sql`
+    // Use the database clock for expiry because auth_sessions.expires is a TIMESTAMP column.
+    const insertedSessions = await sql`
       INSERT INTO auth_sessions ("userId", expires, "sessionToken")
-      VALUES (${account.userId}, ${expiresISO}, ${sessionToken})
+      VALUES (
+        ${account.userId},
+        NOW() + (${sessionLifetimeMinutes} * INTERVAL '1 minute'),
+        ${sessionToken}
+      )
+      RETURNING expires
     `;
+    const expiresISO =
+      insertedSessions[0]?.expires instanceof Date
+        ? insertedSessions[0].expires.toISOString()
+        : new Date(Date.now() + sessionLifetimeSeconds * 1000).toISOString();
 
     // Verify the session was created
     const sessionCheck = await sql` 
@@ -160,21 +174,34 @@ async function handler({ email, password }) {
     // Clear old cookies first to prevent cross-profile contamination
     response.cookies.delete("galixee_session_token");
     response.cookies.delete("sessionToken");
+    response.cookies.delete("session_expires");
 
     // Set session token as HTTP-only cookie for middleware to read
     response.cookies.set("galixee_session_token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
+      // maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
+      maxAge: sessionLifetimeSeconds,
+      // maxAge: 29 * 24 * 60 * 60, 
       path: "/",
     });
+    response.cookies.set("session_expires", expiresISO, {
+  httpOnly: false,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: sessionLifetimeSeconds,
+  // maxAge: 29 * 24 * 60 * 60, 
+  path: "/",
+});
 
     // Also set a non-httpOnly cookie for client-side access
     response.cookies.set("sessionToken", sessionToken, {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60,
+      // maxAge: 30 * 24 * 60 * 60,
+       maxAge: sessionLifetimeSeconds,
+      // maxAge: 29 * 24 * 60 * 60, 
       path: "/",
     });
 

@@ -7,7 +7,9 @@ export async function getSession() {
     const cookieStore = await cookies();
     const headerStore = await headers();
     
-    let sessionToken = cookieStore.get("galixee_session_token")?.value;
+    let sessionToken =
+      cookieStore.get("galixee_session_token")?.value ||
+      cookieStore.get("sessionToken")?.value;
     let userId;
 
     // If no session token from cookies, try Authorization header (mobile)

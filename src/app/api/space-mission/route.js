@@ -1,3 +1,5 @@
+import getSession from "@/utilities/getSession";
+import sql from "@/db";
 async function handler({
   method,
   name,
@@ -6,14 +8,14 @@ async function handler({
   message,
   preferred_contact,
 }) {
-  const session = getSession();
+  const session = await getSession();
+
   if (!session?.user?.id) {
     return { error: "Authentication required" };
   }
 
   if (method === "POST") {
     try {
-      // Store the reservation in the database
       const result = await sql`
         INSERT INTO space_mission_reservations 
         (user_id, contact_name, contact_email, contact_phone, notes)
@@ -22,7 +24,6 @@ async function handler({
         RETURNING id
       `;
 
-      // Send email notification
       const emailBody = `
 New Space Memorial Service Information Request:
 
@@ -67,6 +68,8 @@ This request was submitted by user ID: ${session.user.id}
 
   return { error: "Method not allowed" };
 }
+
 export async function POST(request) {
-  return handler(await request.json());
+  const body = await request.json();
+  return Response.json(await handler({ method: "POST", ...body }));
 }

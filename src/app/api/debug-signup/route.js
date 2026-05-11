@@ -14,7 +14,7 @@ async function handler({email, password}) {
     console.log('password is',password)
     const testEmail = email||`test@example.com`;
     const testPassword =password|| "TestPassword123!";
-    const testName = "Test User";
+    const testName = name?.trim() || "User";
 
 
     const existingUser = await sql`

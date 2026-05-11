@@ -27,6 +27,7 @@ export async function POST() {
   response.cookies.delete("galixee_session_token");
   response.cookies.delete("sessionToken");
   response.cookies.delete("session_expires");
+  localStorage.clear();
 
   return response;
 }
@@ -42,6 +43,7 @@ export async function GET(request) {
   response.cookies.delete("galixee_session_token");
   response.cookies.delete("sessionToken");
   response.cookies.delete("session_expires");
+  
 
   return response;
 }

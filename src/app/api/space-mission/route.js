@@ -1,25 +1,5 @@
 import getSession from "@/utilities/getSession";
 import sql from "@/db";
-import nodemailer from "nodemailer";
-
-  const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-(async () => {
-  try {
-    await transporter.verify();
-    console.log("SMTP connection successful");
-  } catch (err) {
-    console.log("SMTP verify failed:", err);
-  }
-})();
 
 async function handler({
   method,
@@ -65,13 +45,30 @@ Message: ${message}
 Submitted by User ID: ${session.user.id}
       `;
 
-  await transporter.sendMail({
-  from: process.env.MAIL_FROM,
-  to: "GalixeeMIS@gmail.com",
-  subject: "New Space Memorial Service Information Request",
-  text: adminEmailBody,
+     const adminResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    // "api-key": process.env.BREVO_TEST_API_KEY,
+    "api-key": process.env.BREVO_API_KEY
+  },
+  body: JSON.stringify({
+    sender: {
+      email: process.env.MAIL_FROM,
+      // email: process.env.MAIL_FROM_TEST,
+      name: "Galixee",
+    },
+    to: [
+      {
+        email: "GalixeeMIS@gmail.com",
+      },
+    ],
+    subject: "New Space Memorial Service Information Request",
+    textContent: adminEmailBody,
+  }),
 });
-
+            console.log("Admin status:", adminResponse.status);
+console.log("Admin body:", await adminResponse.text());
       // console.log("Admin email status:", adminResponse.status);
       // console.log("Admin email response:", await adminResponse.text());
 
@@ -96,16 +93,33 @@ Thank you,
 Galixee Team
       `;
 
-  await transporter.sendMail({
-  from: process.env.MAIL_FROM,
-  to: email,
-  subject: "We Received Your Request - Galixee",
-  text: userEmailBody,
+     const userResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    // "api-key": process.env.BREVO_TEST_API_KEY,
+    "api-key": process.env.BREVO_API_KEY
+  },
+  body: JSON.stringify({
+    sender: {
+      email: process.env.MAIL_FROM,
+        // email: process.env.MAIL_FROM_TEST,
+      name: "Galixee",
+    },
+    to: [
+      {
+        email: email,
+      },
+    ],
+    subject: "We Received Your Request - Galixee",
+    textContent: userEmailBody,
+  }),
 });
-      // console.log("User email status:", userResponse.status);
-      // console.log("User email response:", await userResponse.text());
+console.log("User status:", userResponse.status);
+console.log("User body:", await userResponse.text());
 
       return { success: true, id: reservationId };
+
     } catch (error) {
       console.error("Error processing space mission request:", error);
       return { error: "Failed to process request" };
@@ -114,6 +128,9 @@ Galixee Team
 
   return { error: "Method not allowed" };
 }
+   
+
+  
 
 export async function POST(request) {
   const body = await request.json();

@@ -1,5 +1,25 @@
 import getSession from "@/utilities/getSession";
 import sql from "@/db";
+import nodemailer from "nodemailer";
+
+  const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+(async () => {
+  try {
+    await transporter.verify();
+    console.log("SMTP connection successful");
+  } catch (err) {
+    console.log("SMTP verify failed:", err);
+  }
+})();
 
 async function handler({
   method,
@@ -9,6 +29,9 @@ async function handler({
   message,
   preferred_contact,
 }) {
+
+
+
   const session = await getSession();
 
   if (!session?.user?.id) {
@@ -25,10 +48,10 @@ VALUES
 RETURNING id
       `;
 
-      const reservationId = result[0].id;
+const reservationId = result[0].id;
 
       /* ---------------- ADMIN EMAIL ---------------- */
-      const adminEmailBody = `
+const adminEmailBody = `
 New Space Memorial Service Information Request:
 
 Reservation ID: ${reservationId}
@@ -42,37 +65,18 @@ Message: ${message}
 Submitted by User ID: ${session.user.id}
       `;
 
-      const adminResponse = await fetch(
-        "https://api.sendgrid.com/v3/mail/send",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            personalizations: [
-              {
-                to: [{ email: "GalixeeMIS@gmail.com" }],
-              },
-            ],
-            from: { email: "noreply@galixee.com" },
-            subject: "New Space Memorial Service Information Request",
-            content: [
-              {
-                type: "text/plain",
-                value: adminEmailBody,
-              },
-            ],
-          }),
-        }
-      );
+  await transporter.sendMail({
+  from: process.env.MAIL_FROM,
+  to: "GalixeeMIS@gmail.com",
+  subject: "New Space Memorial Service Information Request",
+  text: adminEmailBody,
+});
 
-      console.log("Admin email status:", adminResponse.status);
-      console.log("Admin email response:", await adminResponse.text());
+      // console.log("Admin email status:", adminResponse.status);
+      // console.log("Admin email response:", await adminResponse.text());
 
       /* ---------------- USER CONFIRMATION EMAIL ---------------- */
-      const userEmailBody = `
+ const userEmailBody = `
 Hello ${name},
 
 Thank you for contacting Galixee.
@@ -92,34 +96,14 @@ Thank you,
 Galixee Team
       `;
 
-      const userResponse = await fetch(
-        "https://api.sendgrid.com/v3/mail/send",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            personalizations: [
-              {
-                to: [{ email: email }],
-              },
-            ],
-            from: { email: "noreply@galixee.com" },
-            subject: "We Received Your Request - Galixee",
-            content: [
-              {
-                type: "text/plain",
-                value: userEmailBody,
-              },
-            ],
-          }),
-        }
-      );
-
-      console.log("User email status:", userResponse.status);
-      console.log("User email response:", await userResponse.text());
+  await transporter.sendMail({
+  from: process.env.MAIL_FROM,
+  to: email,
+  subject: "We Received Your Request - Galixee",
+  text: userEmailBody,
+});
+      // console.log("User email status:", userResponse.status);
+      // console.log("User email response:", await userResponse.text());
 
       return { success: true, id: reservationId };
     } catch (error) {
